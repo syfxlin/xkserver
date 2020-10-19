@@ -6,7 +6,6 @@
 package me.ixk.xkserver;
 
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor.AbortPolicy;
 import java.util.concurrent.TimeUnit;
@@ -21,13 +20,11 @@ public class Server {
         8,
         0L,
         TimeUnit.MILLISECONDS,
-        new LinkedBlockingQueue<Runnable>(30),
-        new ThreadFactory() {
-
-            @Override
-            public Thread newThread(final Runnable r) {
-                return new Thread(r);
-            }
+        new LinkedBlockingQueue<>(30),
+        r -> {
+            final Thread thread = new Thread(r);
+            thread.setName(String.format("tpe-%d", thread.hashCode()));
+            return thread;
         },
         new AbortPolicy()
     );
@@ -36,14 +33,23 @@ public class Server {
     private final Acceptor acceptor;
 
     public Server() {
-        this.manager = new PollerManager(2);
+        this.manager = new PollerManager(this.poolExecutor, 2);
         this.acceptor = new Acceptor(1, this.manager);
     }
 
     public void start() {
         poolExecutor.execute(this.acceptor);
+        try {
+            this.manager.start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         for (Poller poller : this.manager.getPollers()) {
-            poolExecutor.execute(poller);
+            try {
+                poller.start();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 

@@ -5,7 +5,6 @@
 
 package me.ixk.xkserver;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
@@ -21,17 +20,22 @@ import lombok.extern.slf4j.Slf4j;
  * @date 2020/10/19 上午 11:12
  */
 @Slf4j
-public class Poller implements Runnable {
+public class Poller extends AbstractLifeCycle implements Runnable {
     private final int id;
-    private final Selector selector;
+    private volatile String name;
+    private final PollerManager pollerManager;
+    private volatile Selector selector;
 
-    public Poller(final int id) {
+    public Poller(final int id, final PollerManager pollerManager) {
         this.id = id;
-        try {
-            this.selector = Selector.open();
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        }
+        this.pollerManager = pollerManager;
+    }
+
+    @Override
+    public void doStart() throws Exception {
+        super.doStart();
+        this.selector = this.pollerManager.newSelector();
+        this.pollerManager.execute(this);
     }
 
     public void register(final SocketChannel channel)
@@ -43,8 +47,13 @@ public class Poller implements Runnable {
 
     @Override
     public void run() {
+        final Thread thread = Thread.currentThread();
+        String name = thread.getName();
+        this.name = String.format("poller-%d-%s", this.id, name);
+        thread.setName(this.name);
+
         try {
-            while (true) {
+            while (this.isRunning()) {
                 final int ready = this.selector.select();
                 log.info("Select");
                 if (ready == 0) {
@@ -63,17 +72,19 @@ public class Poller implements Runnable {
                             "Msg: {}",
                             new String(byteBuffer.array()).trim()
                         );
+                        log.info("Poller: {}", this.id);
                         sc.write(
                             ByteBuffer.wrap(
                                 (
                                     "HTTP/1.1 200 OK\n" +
-                                    "Content-Length: 4\n" +
+                                    "Content-Length: 5\n" +
                                     "Date: Mon, 19 Oct 2020 05:10:08 GMT\n" +
                                     "Expires: Thu, 01 Jan 1970 00:00:00 GMT\n" +
                                     "Server: Jetty(9.4.30.v20200611)\n" +
                                     "Set-Cookie: JSESSIONID=node01ddhx5zo238k11hwjj6pwus3ax0.node0; Path=/\n" +
                                     "\n" +
-                                    "post"
+                                    "post" +
+                                    this.id
                                 ).getBytes(StandardCharsets.UTF_8)
                             )
                         );
@@ -83,6 +94,8 @@ public class Poller implements Runnable {
             }
         } catch (final Throwable e) {
             log.error("Poller error", e);
+        } finally {
+            thread.setName(name);
         }
     }
 }

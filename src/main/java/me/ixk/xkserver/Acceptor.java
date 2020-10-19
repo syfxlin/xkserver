@@ -18,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class Acceptor implements Runnable {
     private final int id;
-    private String name;
+    private volatile String name;
     private final ServerSocketChannel acceptChannel;
     private final PollerManager pollerManager;
 
