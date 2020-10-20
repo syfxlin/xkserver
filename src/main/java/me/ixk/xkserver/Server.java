@@ -19,7 +19,7 @@ public class Server {
         18,
         0L,
         TimeUnit.MILLISECONDS,
-        30,
+        100,
         r -> {
             final Thread thread = new Thread(r);
             thread.setName(String.format("tpe-%d", thread.hashCode()));
@@ -32,7 +32,7 @@ public class Server {
     private final Acceptor acceptor;
 
     public Server() {
-        this.manager = new PollerManager(this.poolExecutor, 10);
+        this.manager = new PollerManager(this.poolExecutor, 3);
         this.acceptor = new Acceptor(1, this.manager);
     }
 
