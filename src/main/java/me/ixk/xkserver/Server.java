@@ -5,22 +5,21 @@
 
 package me.ixk.xkserver;
 
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor.AbortPolicy;
 import java.util.concurrent.TimeUnit;
+import me.ixk.xkserver.pool.ThreadPoolExecutor;
 
 /**
  * @author Otstar Lin
  * @date 2020/10/19 上午 11:31
  */
 public class Server {
-    private final ThreadPoolExecutor poolExecutor = new ThreadPoolExecutor(
-        4,
-        8,
+    private final ThreadPoolExecutor poolExecutor = ThreadPoolExecutor.create(
+        6,
+        18,
         0L,
         TimeUnit.MILLISECONDS,
-        new LinkedBlockingQueue<>(30),
+        30,
         r -> {
             final Thread thread = new Thread(r);
             thread.setName(String.format("tpe-%d", thread.hashCode()));
@@ -33,7 +32,7 @@ public class Server {
     private final Acceptor acceptor;
 
     public Server() {
-        this.manager = new PollerManager(this.poolExecutor, 2);
+        this.manager = new PollerManager(this.poolExecutor, 10);
         this.acceptor = new Acceptor(1, this.manager);
     }
 
@@ -41,20 +40,20 @@ public class Server {
         poolExecutor.execute(this.acceptor);
         try {
             this.manager.start();
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new RuntimeException(e);
         }
-        for (Poller poller : this.manager.getPollers()) {
+        for (final Poller poller : this.manager.getPollers()) {
             try {
                 poller.start();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    public static void main(String[] args) {
-        Server server = new Server();
+    public static void main(final String[] args) {
+        final Server server = new Server();
         server.start();
     }
 }
