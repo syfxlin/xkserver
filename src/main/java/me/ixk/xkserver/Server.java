@@ -32,7 +32,7 @@ public class Server {
     private final Acceptor acceptor;
 
     public Server() {
-        this.manager = new PollerManager(this.poolExecutor, 3);
+        this.manager = new PollerManager(this.poolExecutor, 4);
         this.acceptor = new Acceptor(1, this.manager);
     }
 

@@ -18,7 +18,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @date 2020/10/20 上午 8:48
  */
 public class ThreadPoolExecutor
-    extends java.util.concurrent.ThreadPoolExecutor {
+    extends java.util.concurrent.ThreadPoolExecutor
+    implements TryExecutor {
     private final AtomicInteger submittedTaskCount = new AtomicInteger(0);
 
     private ThreadPoolExecutor(
@@ -110,5 +111,14 @@ public class ThreadPoolExecutor
             submittedTaskCount.decrementAndGet();
             throw t;
         }
+    }
+
+    @Override
+    public boolean tryExecute(Runnable task) {
+        if (this.getSubmittedTaskCount() >= this.getMaximumPoolSize()) {
+            return false;
+        }
+        this.execute(task);
+        return true;
     }
 }

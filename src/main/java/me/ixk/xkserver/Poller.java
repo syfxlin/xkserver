@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import me.ixk.xkserver.pool.EatWhatYouKill;
 import me.ixk.xkserver.pool.ExecutionStrategy;
 
 /**
@@ -30,11 +31,14 @@ public class Poller extends AbstractLifeCycle implements Runnable {
     private final PollerManager pollerManager;
     private volatile Selector selector;
     private final SelectorProducer producer;
+    private final ExecutionStrategy strategy;
 
     public Poller(final int id, final PollerManager pollerManager) {
         this.id = id;
         this.pollerManager = pollerManager;
         this.producer = new SelectorProducer();
+        this.strategy =
+            new EatWhatYouKill(this.producer, this.pollerManager.getExecutor());
     }
 
     @Override
@@ -83,14 +87,15 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         thread.setName(this.name);
 
         try {
-            while (this.isRunning()) {
-                final Runnable produce = this.producer.produce();
-                if (produce != null) {
-                    // 临时模拟 EatWhatYouKill
-                    // produce.run();
-                    this.pollerManager.execute(produce);
-                }
-            }
+            // while (this.isRunning()) {
+            //     final Runnable produce = this.producer.produce();
+            //     if (produce != null) {
+            //         // 临时模拟 EatWhatYouKill
+            //         // produce.run();
+            //         this.pollerManager.execute(produce);
+            //     }
+            // }
+            this.pollerManager.execute(this.strategy::execute);
         } catch (final Throwable e) {
             log.error("Poller error", e);
         } finally {
@@ -120,16 +125,14 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         private boolean select() {
             try {
                 final int selected = Poller.this.select();
-                if (selected != 0) {
-                    final Selector selector = Poller.this.selector;
-                    if (selector != null) {
-                        this.keys = selector.selectedKeys();
-                        this.iterator =
-                            this.keys.isEmpty()
-                                ? Collections.emptyIterator()
-                                : keys.iterator();
-                        return true;
-                    }
+                final Selector selector = Poller.this.selector;
+                if (selector != null) {
+                    this.keys = selector.selectedKeys();
+                    this.iterator =
+                        this.keys.isEmpty()
+                            ? Collections.emptyIterator()
+                            : keys.iterator();
+                    return true;
                 }
             } catch (final Throwable e) {
                 // TODO: 异常处理
@@ -148,7 +151,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
                     // 取消 Selector 的监听状态，用以解决无限循环 select 的问题
                     key.interestOps(0);
                     if (attachment instanceof Selectable) {
-                        Runnable task =
+                        final Runnable task =
                             ((Selectable) attachment).selected(key, channel);
                         if (task != null) {
                             return task;
@@ -179,8 +182,11 @@ public class Poller extends AbstractLifeCycle implements Runnable {
     public class Accept implements Selectable {
 
         @Override
-        public Runnable selected(SelectionKey key, SelectableChannel channel) {
-            SocketChannel sc = (SocketChannel) channel;
+        public Runnable selected(
+            final SelectionKey key,
+            final SelectableChannel channel
+        ) {
+            final SocketChannel sc = (SocketChannel) channel;
             return () -> {
                 try {
                     // final ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
@@ -203,7 +209,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
                         )
                     );
                     sc.close();
-                } catch (IOException e) {
+                } catch (final IOException e) {
                     log.error("Read error", e);
                 }
             };

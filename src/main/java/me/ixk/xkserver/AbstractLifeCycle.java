@@ -15,7 +15,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @date 2020/10/19 下午 6:44
  */
 public abstract class AbstractLifeCycle implements LifeCycle {
-    protected final AutoLock lock = new AutoLock();
+    private final AutoLock lock = new AutoLock();
     private volatile State state = State.STOPPED;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 

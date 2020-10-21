@@ -26,6 +26,10 @@ public class PollerManager extends AbstractLifeCycle {
         this.pollers = new Poller[count];
     }
 
+    public Executor getExecutor() {
+        return executor;
+    }
+
     public Selector newSelector() throws IOException {
         return Selector.open();
     }
