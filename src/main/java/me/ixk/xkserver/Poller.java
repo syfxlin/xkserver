@@ -48,18 +48,24 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         throws ClosedChannelException {
         channel.register(
             this.selector,
-            SelectionKey.OP_READ,
-            new Accept(channel)
+            SelectionKey.OP_READ | SelectionKey.OP_WRITE,
+            new Accept()
         );
         log.info("Register");
         this.selector.wakeup();
     }
 
-    public int select(Selector selector) {
+    public int select() {
+        if (this.selector == null) {
+            return 0;
+        }
         try {
-            int selected = selector.select();
+            int selected = this.selector.select();
             if (selected == 0) {
-                log.debug("Selector {} woken with none selected", selector);
+                log.debug(
+                    "Selector {} woken with none selected",
+                    this.selector
+                );
             }
             return selected;
         } catch (IOException e) {
@@ -80,8 +86,9 @@ public class Poller extends AbstractLifeCycle implements Runnable {
             while (this.isRunning()) {
                 final Runnable produce = this.producer.produce();
                 if (produce != null) {
-                    produce.run();
-                    // this.pollerManager.execute(produce);
+                    // 临时模拟 EatWhatYouKill
+                    // produce.run();
+                    this.pollerManager.execute(produce);
                 }
             }
         } catch (final Throwable e) {
@@ -112,19 +119,16 @@ public class Poller extends AbstractLifeCycle implements Runnable {
 
         private boolean select() {
             try {
-                Selector selector = Poller.this.selector;
-                if (selector != null) {
-                    int selected = Poller.this.select(selector);
-                    if (selected != 0) {
-                        selector = Poller.this.selector;
-                        if (selector != null) {
-                            this.keys = selector.selectedKeys();
-                            this.iterator =
-                                this.keys.isEmpty()
-                                    ? Collections.emptyIterator()
-                                    : keys.iterator();
-                            return true;
-                        }
+                int selected = Poller.this.select();
+                if (selected != 0) {
+                    Selector selector = Poller.this.selector;
+                    if (selector != null) {
+                        this.keys = selector.selectedKeys();
+                        this.iterator =
+                            this.keys.isEmpty()
+                                ? Collections.emptyIterator()
+                                : keys.iterator();
+                        return true;
                     }
                 }
             } catch (Throwable e) {
@@ -137,6 +141,8 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         private Runnable processSelected() {
             while (this.iterator.hasNext()) {
                 SelectionKey key = this.iterator.next();
+                // 取消 Selector 的监听状态，用以解决无限循环 select 的问题
+                key.interestOps(0);
                 this.iterator.remove();
                 Object attachment = key.attachment();
                 SelectableChannel channel = key.channel();
@@ -171,36 +177,32 @@ public class Poller extends AbstractLifeCycle implements Runnable {
     }
 
     public class Accept implements Selectable {
-        private final SocketChannel channel;
-
-        public Accept(SocketChannel channel) {
-            this.channel = channel;
-        }
 
         @Override
         public Runnable selected(SelectionKey key, SelectableChannel channel) {
+            SocketChannel sc = (SocketChannel) channel;
             return () -> {
                 try {
                     // final ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
                     // sc.read(byteBuffer);
                     // log.info("Msg: {}", new String(byteBuffer.array()).trim());
                     log.info("Poller: {}", Poller.this.id);
-                    this.channel.write(
-                            ByteBuffer.wrap(
-                                (
-                                    "HTTP/1.1 200 OK\n" +
-                                    "Content-Length: 5\n" +
-                                    "Date: Mon, 19 Oct 2020 05:10:08 GMT\n" +
-                                    "Expires: Thu, 01 Jan 1970 00:00:00 GMT\n" +
-                                    "Server: Jetty(9.4.30.v20200611)\n" +
-                                    "Set-Cookie: JSESSIONID=node01ddhx5zo238k11hwjj6pwus3ax0.node0; Path=/\n" +
-                                    "\n" +
-                                    "post" +
-                                    Poller.this.id
-                                ).getBytes(StandardCharsets.UTF_8)
-                            )
-                        );
-                    this.channel.close();
+                    sc.write(
+                        ByteBuffer.wrap(
+                            (
+                                "HTTP/1.1 200 OK\n" +
+                                "Content-Length: 5\n" +
+                                "Date: Mon, 19 Oct 2020 05:10:08 GMT\n" +
+                                "Expires: Thu, 01 Jan 1970 00:00:00 GMT\n" +
+                                "Server: Jetty(9.4.30.v20200611)\n" +
+                                "Set-Cookie: JSESSIONID=node01ddhx5zo238k11hwjj6pwus3ax0.node0; Path=/\n" +
+                                "\n" +
+                                "post" +
+                                Poller.this.id
+                            ).getBytes(StandardCharsets.UTF_8)
+                        )
+                    );
+                    sc.close();
                 } catch (IOException e) {
                     log.error("Read error", e);
                 }

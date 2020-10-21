@@ -15,7 +15,7 @@ import me.ixk.xkserver.pool.ThreadPoolExecutor;
  */
 public class Server {
     private final ThreadPoolExecutor poolExecutor = ThreadPoolExecutor.create(
-        6,
+        8,
         18,
         0L,
         TimeUnit.MILLISECONDS,
