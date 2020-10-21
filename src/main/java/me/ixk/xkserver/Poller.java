@@ -208,6 +208,12 @@ public class Poller extends AbstractLifeCycle implements Runnable {
                             ).getBytes(StandardCharsets.UTF_8)
                         )
                     );
+                    try {
+                        // 模拟业务阻塞
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                     sc.close();
                 } catch (final IOException e) {
                     log.error("Read error", e);

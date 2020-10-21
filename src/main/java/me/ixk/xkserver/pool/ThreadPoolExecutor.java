@@ -118,7 +118,11 @@ public class ThreadPoolExecutor
         if (this.getSubmittedTaskCount() >= this.getMaximumPoolSize()) {
             return false;
         }
-        this.execute(task);
+        try {
+            this.execute(task);
+        } catch (RejectedExecutionException e) {
+            return false;
+        }
         return true;
     }
 }
