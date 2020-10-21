@@ -39,16 +39,17 @@ public class Acceptor extends AbstractLifeCycle implements Runnable {
     }
 
     public void accept() throws IOException {
-        final ServerSocketChannel serverChannel = acceptChannel;
-        if (serverChannel != null && serverChannel.isOpen()) {
-            final SocketChannel channel = serverChannel.accept();
-            accepted(channel);
+        if (this.acceptChannel != null && this.acceptChannel.isOpen()) {
+            final SocketChannel channel = this.acceptChannel.accept();
+            this.accepted(channel);
         }
     }
 
     public void accepted(SocketChannel channel) throws IOException {
-        channel.configureBlocking(false);
-        this.pollerManager.register(channel);
+        if (channel != null && channel.isOpen()) {
+            channel.configureBlocking(false);
+            this.pollerManager.register(channel);
+        }
     }
 
     @Override

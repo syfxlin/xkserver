@@ -60,7 +60,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
             return 0;
         }
         try {
-            int selected = this.selector.select();
+            final int selected = this.selector.select();
             if (selected == 0) {
                 log.debug(
                     "Selector {} woken with none selected",
@@ -68,7 +68,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
                 );
             }
             return selected;
-        } catch (IOException e) {
+        } catch (final IOException e) {
             // TODO: 异常处理
             log.error("Select error", e);
         }
@@ -78,7 +78,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
     @Override
     public void run() {
         final Thread thread = Thread.currentThread();
-        String name = thread.getName();
+        final String name = thread.getName();
         this.name = String.format("poller-%d-%s", this.id, name);
         thread.setName(this.name);
 
@@ -105,7 +105,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         @Override
         public Runnable produce() {
             while (true) {
-                Runnable task = this.processSelected();
+                final Runnable task = this.processSelected();
                 // 当前有任务，执行
                 if (task != null) {
                     return task;
@@ -119,9 +119,9 @@ public class Poller extends AbstractLifeCycle implements Runnable {
 
         private boolean select() {
             try {
-                int selected = Poller.this.select();
+                final int selected = Poller.this.select();
                 if (selected != 0) {
-                    Selector selector = Poller.this.selector;
+                    final Selector selector = Poller.this.selector;
                     if (selector != null) {
                         this.keys = selector.selectedKeys();
                         this.iterator =
@@ -131,7 +131,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
                         return true;
                     }
                 }
-            } catch (Throwable e) {
+            } catch (final Throwable e) {
                 // TODO: 异常处理
                 log.error("Select error", e);
             }
@@ -140,13 +140,13 @@ public class Poller extends AbstractLifeCycle implements Runnable {
 
         private Runnable processSelected() {
             while (this.iterator.hasNext()) {
-                SelectionKey key = this.iterator.next();
-                // 取消 Selector 的监听状态，用以解决无限循环 select 的问题
-                key.interestOps(0);
+                final SelectionKey key = this.iterator.next();
                 this.iterator.remove();
-                Object attachment = key.attachment();
-                SelectableChannel channel = key.channel();
+                final Object attachment = key.attachment();
+                final SelectableChannel channel = key.channel();
                 if (key.isValid()) {
+                    // 取消 Selector 的监听状态，用以解决无限循环 select 的问题
+                    key.interestOps(0);
                     if (attachment instanceof Selectable) {
                         Runnable task =
                             ((Selectable) attachment).selected(key, channel);
