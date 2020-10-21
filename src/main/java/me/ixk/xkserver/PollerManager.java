@@ -57,6 +57,7 @@ public class PollerManager extends AbstractLifeCycle {
     public void doStart() throws Exception {
         for (int i = 0; i < this.pollers.length; i++) {
             this.pollers[i] = this.newPoller(i);
+            this.pollers[i].start();
         }
         super.doStart();
     }

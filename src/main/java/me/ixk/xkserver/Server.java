@@ -37,18 +37,11 @@ public class Server {
     }
 
     public void start() {
-        poolExecutor.execute(this.acceptor);
         try {
+            this.acceptor.start();
             this.manager.start();
         } catch (final Exception e) {
             throw new RuntimeException(e);
-        }
-        for (final Poller poller : this.manager.getPollers()) {
-            try {
-                poller.start();
-            } catch (final Exception e) {
-                throw new RuntimeException(e);
-            }
         }
     }
 

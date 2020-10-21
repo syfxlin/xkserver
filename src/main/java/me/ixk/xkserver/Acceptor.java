@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
  * @date 2020/10/19 上午 10:57
  */
 @Slf4j
-public class Acceptor implements Runnable {
+public class Acceptor extends AbstractLifeCycle implements Runnable {
     private final int id;
     private volatile String name;
     private final ServerSocketChannel acceptChannel;
@@ -31,6 +31,11 @@ public class Acceptor implements Runnable {
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void doStart() throws Exception {
+        this.pollerManager.execute(this);
     }
 
     public void accept() throws IOException {
