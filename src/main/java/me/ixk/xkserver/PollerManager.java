@@ -50,7 +50,9 @@ public class PollerManager extends AbstractLifeCycle {
 
     public void register(final SocketChannel channel)
         throws ClosedChannelException {
-        this.getPoller0().register(channel);
+        // this.getPoller0().register(channel);
+        final Poller poller = this.getPoller0();
+        poller.submit(poller.new Accept(channel));
     }
 
     public void execute(Runnable run) {

@@ -14,8 +14,10 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import lombok.extern.slf4j.Slf4j;
 import me.ixk.xkserver.pool.EatWhatYouKill;
 import me.ixk.xkserver.pool.ExecutionStrategy;
@@ -32,6 +34,9 @@ public class Poller extends AbstractLifeCycle implements Runnable {
     private volatile Selector selector;
     private final SelectorProducer producer;
     private final ExecutionStrategy strategy;
+    private volatile Deque<SelectUpdate> updates = new ConcurrentLinkedDeque<>();
+    private volatile Deque<SelectUpdate> updateable = new ConcurrentLinkedDeque<>();
+    private final AutoLock lock = new AutoLock();
 
     public Poller(final int id, final PollerManager pollerManager) {
         this.id = id;
@@ -48,35 +53,31 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         this.pollerManager.execute(this);
     }
 
-    public void register(final SocketChannel channel)
-        throws ClosedChannelException {
-        channel.register(
-            this.selector,
-            SelectionKey.OP_READ | SelectionKey.OP_WRITE,
-            new Accept()
-        );
-        log.info("Register");
-        this.selector.wakeup();
+    public void submit(SelectUpdate update) {
+        this.updates.add(update);
+        if (this.selector != null) {
+            this.selector.wakeup();
+        }
     }
 
-    public int select() {
-        if (this.selector == null) {
-            return 0;
+    public Set<SelectionKey> select() {
+        Selector selector = this.selector;
+        if (selector == null) {
+            return Collections.emptySet();
         }
         try {
-            final int selected = this.selector.select();
+            final int selected = selector.select();
             if (selected == 0) {
-                log.debug(
-                    "Selector {} woken with none selected",
-                    this.selector
-                );
+                log.debug("Selector {} woken with none selected", selector);
             }
-            return selected;
+            return selected == 0
+                ? Collections.emptySet()
+                : selector.selectedKeys();
         } catch (final IOException e) {
             // TODO: 异常处理
             log.error("Select error", e);
         }
-        return 0;
+        return Collections.emptySet();
     }
 
     @Override
@@ -116,6 +117,8 @@ public class Poller extends AbstractLifeCycle implements Runnable {
                     return task;
                 }
 
+                this.processUpdates();
+
                 if (!this.select()) {
                     return null;
                 }
@@ -124,14 +127,13 @@ public class Poller extends AbstractLifeCycle implements Runnable {
 
         private boolean select() {
             try {
-                final int selected = Poller.this.select();
-                final Selector selector = Poller.this.selector;
+                final Set<SelectionKey> selectionKeys = Poller.this.select();
                 if (selector != null) {
-                    this.keys = selector.selectedKeys();
+                    this.keys = selectionKeys;
                     this.iterator =
-                        this.keys.isEmpty()
+                        selectionKeys.isEmpty()
                             ? Collections.emptyIterator()
-                            : keys.iterator();
+                            : selectionKeys.iterator();
                     return true;
                 }
             } catch (final Throwable e) {
@@ -165,6 +167,34 @@ public class Poller extends AbstractLifeCycle implements Runnable {
             }
             return null;
         }
+
+        private void processUpdates() {
+            try (final AutoLock l = Poller.this.lock.lock()) {
+                final Deque<SelectUpdate> updates = Poller.this.updates;
+                Poller.this.updates = Poller.this.updateable;
+                Poller.this.updateable = updates;
+            }
+            for (final SelectUpdate update : Poller.this.updateable) {
+                if (Poller.this.selector != null) {
+                    update.update(Poller.this.selector);
+                }
+            }
+            Poller.this.updateable.clear();
+            if (
+                Poller.this.selector != null && !Poller.this.updates.isEmpty()
+            ) {
+                Poller.this.selector.wakeup();
+            }
+        }
+    }
+
+    public interface SelectUpdate {
+        /**
+         * 更新任务
+         *
+         * @param selector 选择器
+         */
+        void update(Selector selector);
     }
 
     public interface Selectable {
@@ -179,46 +209,63 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         Runnable selected(SelectionKey key, SelectableChannel channel);
     }
 
-    public class Accept implements Selectable {
+    public class Accept implements Selectable, SelectUpdate {
+        private final SocketChannel channel;
+
+        public Accept(SocketChannel channel) {
+            this.channel = channel;
+        }
 
         @Override
         public Runnable selected(
             final SelectionKey key,
             final SelectableChannel channel
         ) {
-            final SocketChannel sc = (SocketChannel) channel;
             return () -> {
                 try {
                     // final ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
                     // sc.read(byteBuffer);
                     // log.info("Msg: {}", new String(byteBuffer.array()).trim());
                     log.info("Poller: {}", Poller.this.id);
-                    sc.write(
-                        ByteBuffer.wrap(
-                            (
-                                "HTTP/1.1 200 OK\n" +
-                                "Content-Length: 5\n" +
-                                "Date: Mon, 19 Oct 2020 05:10:08 GMT\n" +
-                                "Expires: Thu, 01 Jan 1970 00:00:00 GMT\n" +
-                                "Server: Jetty(9.4.30.v20200611)\n" +
-                                "Set-Cookie: JSESSIONID=node01ddhx5zo238k11hwjj6pwus3ax0.node0; Path=/\n" +
-                                "\n" +
-                                "post" +
-                                Poller.this.id
-                            ).getBytes(StandardCharsets.UTF_8)
-                        )
-                    );
+                    this.channel.write(
+                            ByteBuffer.wrap(
+                                (
+                                    "HTTP/1.1 200 OK\n" +
+                                    "Content-Length: 5\n" +
+                                    "Date: Mon, 19 Oct 2020 05:10:08 GMT\n" +
+                                    "Expires: Thu, 01 Jan 1970 00:00:00 GMT\n" +
+                                    "Server: Jetty(9.4.30.v20200611)\n" +
+                                    "Set-Cookie: JSESSIONID=node01ddhx5zo238k11hwjj6pwus3ax0.node0; Path=/\n" +
+                                    "\n" +
+                                    "post" +
+                                    Poller.this.id
+                                ).getBytes(StandardCharsets.UTF_8)
+                            )
+                        );
                     try {
                         // 模拟业务阻塞
                         Thread.sleep(50);
-                    } catch (InterruptedException e) {
+                    } catch (final InterruptedException e) {
                         e.printStackTrace();
                     }
-                    sc.close();
+                    this.channel.close();
                 } catch (final IOException e) {
                     log.error("Read error", e);
                 }
             };
+        }
+
+        @Override
+        public void update(Selector selector) {
+            try {
+                this.channel.register(
+                        selector,
+                        SelectionKey.OP_READ | SelectionKey.OP_WRITE,
+                        this
+                    );
+            } catch (ClosedChannelException e) {
+                log.error("Update error", e);
+            }
         }
     }
 }
