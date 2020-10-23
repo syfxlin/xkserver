@@ -8,8 +8,10 @@ package me.ixk.xkserver.http;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import me.ixk.xkserver.http.HttpHeader.Value;
 import me.ixk.xkserver.http.HttpTokens.Type;
@@ -23,6 +25,7 @@ import me.ixk.xkserver.http.HttpTokens.Type;
 public class HttpParser {
     private static final String CONTENT_LENGTH = "content-length";
     private static final String TRANSFER_ENCODING = "transfer-encoding";
+    private static final String TRAILER = "trailer";
 
     public enum State {
         /**
@@ -97,6 +100,10 @@ public class HttpParser {
          * 尾字段
          */
         TRAILER,
+        /**
+         * 结束
+         */
+        END,
     }
 
     private State state = State.START_LINE;
@@ -108,6 +115,7 @@ public class HttpParser {
     private String transferEncoding = null;
     private int chunkLength = 0;
     private final List<ByteBuffer> contents;
+    private final Set<String> trailers;
     private boolean hasCr = false;
     private final int maxHeaderByteLength = -1;
 
@@ -115,15 +123,21 @@ public class HttpParser {
     private final StringBuilder value = new StringBuilder();
     private int length = 0;
 
+    private boolean eof = false;
+
     public HttpParser() {
         this.method = HttpMethod.GET;
         this.uri = new StringBuilder();
         this.version = HttpVersion.HTTP_1_1;
         this.headers = new ConcurrentHashMap<>();
         this.contents = new ArrayList<>();
+        this.trailers = new HashSet<>();
     }
 
     public void parse(final ByteBuffer buffer) {
+        if (this.state == State.END) {
+            throw new IllegalStateException("HttpParser status is END");
+        }
         if (this.state == State.START_LINE) {
             this.state = State.METHOD;
         }
@@ -133,6 +147,15 @@ public class HttpParser {
         this.parseHeaders(buffer);
         // 解析内容
         this.parseContent(buffer);
+        // Trailer
+        this.parseTrailer(buffer);
+
+        // 清除末尾多余的换行
+        this.parseCrLf(buffer);
+
+        if (this.isEof() && !buffer.hasRemaining()) {
+            this.setState(State.END);
+        }
     }
 
     private void parseLine(final ByteBuffer buffer) {
@@ -265,10 +288,12 @@ public class HttpParser {
     }
 
     private void parseHeaders(final ByteBuffer buffer) {
-        // TODO: 处理 TRAILER
+        if (!buffer.hasRemaining()) {
+            return;
+        }
         if (
-            this.state.ordinal() >= State.START_CONTENT.ordinal() ||
-            !buffer.hasRemaining()
+            this.state.ordinal() >= State.START_CONTENT.ordinal() &&
+            this.state != State.TRAILER
         ) {
             return;
         }
@@ -487,11 +512,8 @@ public class HttpParser {
                     }
                     break;
                 case END_CONTENT:
-                    final HttpTokens.Token token = this.next(buffer);
-                    if (token != null && token.getType() != Type.LF) {
-                        throw new IllegalCharacterException(token);
-                    }
-                    break;
+                    this.setState(State.TRAILER);
+                    return;
                 default:
                     throw new IllegalStateException(this.state.toString());
             }
@@ -504,6 +526,11 @@ public class HttpParser {
         final State nextState
     ) {
         final String headerName = name.toString();
+
+        if (nextState == State.TRAILER && !this.trailers.contains(headerName)) {
+            throw new BadMessageException("Header is not defined in Trailer");
+        }
+
         final String headerValue = value.toString();
         final List<String> list =
             this.headers.getOrDefault(headerName, new ArrayList<>());
@@ -540,8 +567,39 @@ public class HttpParser {
                 }
                 this.transferEncoding = headerValue;
                 break;
+            case TRAILER:
+                this.trailers.addAll(list);
+                break;
             default:
             //
+        }
+    }
+
+    private void parseTrailer(final ByteBuffer buffer) {
+        if (
+            this.state.ordinal() > State.TRAILER.ordinal() ||
+            !buffer.hasRemaining() ||
+            this.trailers.isEmpty()
+        ) {
+            return;
+        }
+        this.parseHeaders(buffer);
+    }
+
+    private void parseCrLf(final ByteBuffer buffer) {
+        if (
+            (this.trailers.isEmpty() && this.state == State.END_CONTENT) ||
+            this.state == State.TRAILER
+        ) {
+            final ByteBuffer copy = buffer.asReadOnlyBuffer();
+            while (buffer.hasRemaining()) {
+                final HttpTokens.Token next = this.next(copy);
+                if (next != null && next.getType() == Type.LF) {
+                    this.next(buffer);
+                } else {
+                    break;
+                }
+            }
         }
     }
 
@@ -617,5 +675,13 @@ public class HttpParser {
         }
         buffer.flip();
         return buffer.asReadOnlyBuffer();
+    }
+
+    public boolean isEof() {
+        return eof;
+    }
+
+    public void setEof(boolean eof) {
+        this.eof = eof;
     }
 }

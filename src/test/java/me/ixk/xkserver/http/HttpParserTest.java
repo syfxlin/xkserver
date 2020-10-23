@@ -6,6 +6,8 @@
 package me.ixk.xkserver.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.hutool.core.util.StrUtil;
 import java.nio.ByteBuffer;
@@ -78,6 +80,20 @@ class HttpParserTest {
     }
 
     @Test
+    void parseTrailer() {
+        final HttpParser parser = new HttpParser();
+        parser.parse(
+            this.link(
+                    this.startLine(),
+                    this.trailerContentHeaders(),
+                    this.trailerContent()
+                )
+        );
+        this.assertContent(parser, this.wrap("MozillaDeveloperNetwork"));
+        assertTrue(parser.getHeaders().containsKey("Expires"));
+    }
+
+    @Test
     void multipleInput() {
         final HttpParser parser = new HttpParser();
         parser.parse(this.startLine());
@@ -107,6 +123,41 @@ class HttpParserTest {
         parser.parse(this.wrap("7\r\nNetwork\r\n"));
         parser.parse(this.wrap("0\r\n\r\n"));
         this.assertContent(parser, this.wrap("MozillaDeveloperNetwork"));
+    }
+
+    @Test
+    void chunkEnd() {
+        final HttpParser parser = new HttpParser();
+        parser.parse(this.startLine());
+        parser.parse(this.chunkContentHeaders());
+        parser.parse(this.wrap("7\r\nMozilla\r\n"));
+        parser.parse(this.wrap("9\r\nDeveloper\r\n"));
+        parser.parse(this.wrap("7\r\nNetwork\r\n"));
+        parser.setEof(true);
+        parser.parse(this.wrap("0\r\n\r\n"));
+        this.assertContent(parser, this.wrap("MozillaDeveloperNetwork"));
+        assertThrows(
+            IllegalStateException.class,
+            () -> {
+                parser.parse(this.wrap("123"));
+            }
+        );
+    }
+
+    @Test
+    void fixedEnd() {
+        final HttpParser parser = new HttpParser();
+        parser.parse(this.startLine());
+        parser.parse(this.fixedContentHeaders());
+        parser.parse(this.wrap("name"));
+        parser.parse(this.wrap("="));
+        parser.setEof(true);
+        parser.parse(this.wrap("syfxlin\r\n"));
+        this.assertContent(parser, this.fixedContent());
+        assertThrows(
+            IllegalStateException.class,
+            () -> parser.parse(this.wrap("123"))
+        );
     }
 
     private void assertStartLine(final HttpParser parser) {
@@ -186,6 +237,31 @@ class HttpParserTest {
                 "7\r\n" +
                 "Network\r\n" +
                 "0\r\n" +
+                "\r\n"
+            );
+    }
+
+    private ByteBuffer trailerContentHeaders() {
+        return this.wrap(
+                "Host: ixk.me\r\n" +
+                "Accept: text/html\r\n" +
+                "Accept-Encoding: gzip, deflate, br\r\n" +
+                "Transfer-Encoding: chunked\r\n" +
+                "Trailer: Expires\r\n" +
+                "\r\n"
+            );
+    }
+
+    private ByteBuffer trailerContent() {
+        return this.wrap(
+                "7\r\n" +
+                "Mozilla\r\n" +
+                "9\r\n" +
+                "Developer\r\n" +
+                "7\r\n" +
+                "Network\r\n" +
+                "0\r\n" +
+                "Expires: Wed, 21 Oct 2015 07:28:00 GMT\r\n" +
                 "\r\n"
             );
     }
