@@ -7,8 +7,8 @@ package me.ixk.xkserver.pool;
 
 import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
-import me.ixk.xkserver.AbstractLifeCycle;
-import me.ixk.xkserver.AutoLock;
+import me.ixk.xkserver.life.AbstractLifeCycle;
+import me.ixk.xkserver.utils.AutoLock;
 
 /**
  * 已知 Bug，因分配策略存在问题导致所有 Selector 被占用的时候无法接受连接

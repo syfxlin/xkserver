@@ -3,7 +3,7 @@
  *
  */
 
-package me.ixk.xkserver;
+package me.ixk.xkserver.conntecor;
 
 import java.util.concurrent.ThreadPoolExecutor.AbortPolicy;
 import java.util.concurrent.TimeUnit;

@@ -3,7 +3,7 @@
  *
  */
 
-package me.ixk.xkserver;
+package me.ixk.xkserver.conntecor;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
@@ -11,6 +11,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import me.ixk.xkserver.life.AbstractLifeCycle;
 
 /**
  * @author Otstar Lin

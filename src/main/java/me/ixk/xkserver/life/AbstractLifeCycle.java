@@ -3,10 +3,11 @@
  *
  */
 
-package me.ixk.xkserver;
+package me.ixk.xkserver.life;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import me.ixk.xkserver.utils.AutoLock;
 
 /**
  * 生命周期抽象类

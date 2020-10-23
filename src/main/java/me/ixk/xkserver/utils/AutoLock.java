@@ -3,7 +3,7 @@
  *
  */
 
-package me.ixk.xkserver;
+package me.ixk.xkserver.utils;
 
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;

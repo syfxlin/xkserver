@@ -3,13 +3,14 @@
  *
  */
 
-package me.ixk.xkserver;
+package me.ixk.xkserver.conntecor;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import lombok.extern.slf4j.Slf4j;
+import me.ixk.xkserver.life.AbstractLifeCycle;
 
 /**
  * @author Otstar Lin

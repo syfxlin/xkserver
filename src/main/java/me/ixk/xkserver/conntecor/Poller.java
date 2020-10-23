@@ -3,7 +3,7 @@
  *
  */
 
-package me.ixk.xkserver;
+package me.ixk.xkserver.conntecor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -19,8 +19,10 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import lombok.extern.slf4j.Slf4j;
+import me.ixk.xkserver.life.AbstractLifeCycle;
 import me.ixk.xkserver.pool.EatWhatYouKill;
 import me.ixk.xkserver.pool.ExecutionStrategy;
+import me.ixk.xkserver.utils.AutoLock;
 
 /**
  * @author Otstar Lin
@@ -29,7 +31,6 @@ import me.ixk.xkserver.pool.ExecutionStrategy;
 @Slf4j
 public class Poller extends AbstractLifeCycle implements Runnable {
     private final int id;
-    private volatile String name;
     private final PollerManager pollerManager;
     private volatile Selector selector;
     private final SelectorProducer producer;
@@ -82,30 +83,10 @@ public class Poller extends AbstractLifeCycle implements Runnable {
 
     @Override
     public void run() {
-        final Thread thread = Thread.currentThread();
-        final String name = thread.getName();
-        this.name = String.format("poller-%d-%s", this.id, name);
-        thread.setName(this.name);
-
-        try {
-            // while (this.isRunning()) {
-            //     final Runnable produce = this.producer.produce();
-            //     if (produce != null) {
-            //         // 临时模拟 EatWhatYouKill
-            //         // produce.run();
-            //         this.pollerManager.execute(produce);
-            //     }
-            // }
-            this.pollerManager.execute(this.strategy::execute);
-        } catch (final Throwable e) {
-            log.error("Poller error", e);
-        } finally {
-            thread.setName(name);
-        }
+        this.pollerManager.execute(this.strategy::execute);
     }
 
     private class SelectorProducer implements ExecutionStrategy.Producer {
-        private volatile Set<SelectionKey> keys = Collections.emptySet();
         private volatile Iterator<SelectionKey> iterator = Collections.emptyIterator();
 
         @Override
@@ -129,7 +110,6 @@ public class Poller extends AbstractLifeCycle implements Runnable {
             try {
                 final Set<SelectionKey> selectionKeys = Poller.this.select();
                 if (selector != null) {
-                    this.keys = selectionKeys;
                     this.iterator =
                         selectionKeys.isEmpty()
                             ? Collections.emptyIterator()

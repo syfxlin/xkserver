@@ -3,7 +3,7 @@
  *
  */
 
-package me.ixk.xkserver;
+package me.ixk.xkserver.life;
 
 import java.util.EventListener;
 

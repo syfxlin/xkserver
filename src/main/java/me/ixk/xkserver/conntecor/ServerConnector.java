@@ -3,7 +3,7 @@
  *
  */
 
-package me.ixk.xkserver;
+package me.ixk.xkserver.conntecor;
 
 import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
