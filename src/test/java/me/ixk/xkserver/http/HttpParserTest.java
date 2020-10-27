@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -160,9 +161,65 @@ class HttpParserTest {
         );
     }
 
+    @Test
+    void splitFixedInput() {
+        final HttpParser parser = new HttpParser();
+        final ByteBuffer buffer =
+            this.link(
+                    this.startLine(),
+                    this.fixedContentHeaders(),
+                    this.fixedContent()
+                );
+        Arrays
+            .stream(StrUtil.str(buffer, StandardCharsets.ISO_8859_1).split(""))
+            .map(String::getBytes)
+            .map(ByteBuffer::wrap)
+            .forEach(parser::parse);
+        this.assertStartLine(parser);
+        this.assertHeaders(parser);
+        this.assertContent(parser, this.fixedContent());
+    }
+
+    @Test
+    void splitChunkInput() {
+        final HttpParser parser = new HttpParser();
+        final ByteBuffer buffer =
+            this.link(
+                    this.startLine(),
+                    this.chunkContentHeaders(),
+                    this.chunkContent()
+                );
+        Arrays
+            .stream(StrUtil.str(buffer, StandardCharsets.ISO_8859_1).split(""))
+            .map(String::getBytes)
+            .map(ByteBuffer::wrap)
+            .forEach(parser::parse);
+        this.assertStartLine(parser);
+        this.assertHeaders(parser);
+        this.assertContent(parser, this.wrap("MozillaDeveloperNetwork"));
+    }
+
+    @Test
+    void splitTrailerInput() {
+        final HttpParser parser = new HttpParser();
+        final ByteBuffer buffer =
+            this.link(
+                    this.startLine(),
+                    this.trailerContentHeaders(),
+                    this.trailerContent()
+                );
+        Arrays
+            .stream(StrUtil.str(buffer, StandardCharsets.ISO_8859_1).split(""))
+            .map(String::getBytes)
+            .map(ByteBuffer::wrap)
+            .forEach(parser::parse);
+        this.assertContent(parser, this.wrap("MozillaDeveloperNetwork"));
+        assertTrue(parser.getHeaders().containsKey("Expires"));
+    }
+
     private void assertStartLine(final HttpParser parser) {
         assertEquals(HttpMethod.GET, parser.getMethod());
-        assertEquals("/url", parser.getUri().toString());
+        assertEquals("/url", parser.getUri());
         assertEquals(HttpVersion.HTTP_1_1, parser.getVersion());
     }
 
@@ -191,11 +248,11 @@ class HttpParserTest {
         final HttpParser parser,
         final ByteBuffer buffer
     ) {
-        final ByteBuffer content = parser.getAllContent();
-        if (content == null) {
-            throw new AssertionFailedError("Content is null");
-        }
-        assertEquals(this.str(buffer), this.str(content));
+        final String content = IoUtil
+            .getUtf8Reader(parser.getHttpInput())
+            .lines()
+            .collect(Collectors.joining("\r\n"));
+        assertEquals(this.str(buffer).trim(), content.trim());
     }
 
     private ByteBuffer startLine() {

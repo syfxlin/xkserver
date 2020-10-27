@@ -5,7 +5,6 @@
 
 package me.ixk.xkserver.http;
 
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -13,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import me.ixk.xkserver.http.HttpHeader.Value;
 import me.ixk.xkserver.http.HttpTokens.Type;
 
@@ -108,20 +108,24 @@ public class HttpParser {
 
     private State state = State.START_LINE;
     private HttpMethod method;
-    private final StringBuilder uri;
+    private String uri;
     private HttpVersion version;
     private final Map<String, List<String>> headers;
     private int contentLength = -1;
     private String transferEncoding = null;
     private int chunkLength = 0;
-    private final List<ByteBuffer> contents;
+    private final HttpInput input;
     private final Set<String> trailers;
     private boolean hasCr = false;
     private int maxHeaderByteLength = -1;
 
+    /**
+     * 在使用后重置
+     */
     private final StringBuilder string = new StringBuilder();
     private final StringBuilder value = new StringBuilder();
     private int length = 0;
+    private State headerState;
 
     private boolean eof = false;
 
@@ -131,10 +135,10 @@ public class HttpParser {
 
     public HttpParser(final int maxHeaderByteLength) {
         this.method = HttpMethod.GET;
-        this.uri = new StringBuilder();
+        this.uri = null;
         this.version = HttpVersion.HTTP_1_1;
         this.headers = new ConcurrentHashMap<>();
-        this.contents = new ArrayList<>();
+        this.input = new HttpInput();
         this.trailers = new HashSet<>();
         this.maxHeaderByteLength = maxHeaderByteLength;
     }
@@ -159,7 +163,7 @@ public class HttpParser {
         this.parseCrLf(buffer);
 
         if (this.isEof() && !buffer.hasRemaining()) {
-            this.setState(State.END);
+            this.state = State.END;
         }
     }
 
@@ -170,42 +174,46 @@ public class HttpParser {
         ) {
             return;
         }
-        this.length = 0;
-        if (this.state == State.METHOD) {
-            this.method = HttpMethod.bytesToMethod(buffer);
-            if (this.method == null) {
-                throw new BadMessageException();
-            }
-            buffer.position(
-                buffer.position() + this.method.asString().length() + 1
-            );
-            this.length += this.method.asString().length();
-            this.setState(State.SPACE1);
-        }
-
         while (buffer.hasRemaining()) {
             final HttpTokens.Token token = this.next(buffer);
             if (token == null) {
                 break;
             }
-            this.length++;
-            if (
-                this.maxHeaderByteLength > 0 &&
-                this.length > this.maxHeaderByteLength
-            ) {
-                if (this.state == State.URI) {
-                    throw new BadMessageException(HttpStatus.URI_TOO_LONG);
-                } else {
-                    throw new BadMessageException(
-                        HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE
-                    );
-                }
-            }
+
+            this.addLength(
+                    l -> {
+                        throw new BadMessageException(
+                            this.state == State.URI
+                                ? HttpStatus.URI_TOO_LONG
+                                : HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE
+                        );
+                    }
+                );
 
             final HttpTokens.Type type = token.getType();
             final char ch = token.getChar();
 
             switch (this.state) {
+                case METHOD:
+                    switch (type) {
+                        // 方法字符
+                        case ALPHA:
+                            this.string.append(ch);
+                            break;
+                        // 空格切换到 SPACE1 状态
+                        case SPACE:
+                            this.method =
+                                HttpMethod.from(this.string.toString());
+                            if (this.method == null) {
+                                throw new BadMessageException();
+                            }
+                            this.string.setLength(0);
+                            this.state = State.SPACE1;
+                            break;
+                        default:
+                            throw new IllegalCharacterException(token);
+                    }
+                    break;
                 case SPACE1:
                     switch (type) {
                         // 空格跳过
@@ -217,9 +225,8 @@ public class HttpParser {
                         case TCHAR:
                         case VCHAR:
                         case COLON:
-                            this.uri.setLength(0);
-                            this.setState(State.URI);
-                            this.uri.append(ch);
+                            this.string.append(ch);
+                            this.state = State.URI;
                             break;
                         default:
                             throw new BadMessageException("Not URI");
@@ -234,11 +241,13 @@ public class HttpParser {
                         case VCHAR:
                         case COLON:
                         case OTEXT:
-                            this.uri.append(ch);
+                            this.string.append(ch);
                             break;
                         // 遇到空格则说明 URL 部分结束，转换到第二个空格状态
                         case SPACE:
-                            this.setState(State.SPACE2);
+                            this.uri = this.string.toString();
+                            this.string.setLength(0);
+                            this.state = State.SPACE2;
                             break;
                         default:
                             throw new IllegalCharacterException(token);
@@ -253,7 +262,7 @@ public class HttpParser {
                         case ALPHA:
                             this.string.setLength(0);
                             this.string.append(ch);
-                            this.setState(State.VERSION);
+                            this.state = State.VERSION;
                             break;
                         default:
                             throw new IllegalCharacterException(token);
@@ -279,8 +288,9 @@ public class HttpParser {
                                     "Unknown Version"
                                 );
                             }
+                            this.string.setLength(0);
                             this.length = 0;
-                            this.setState(State.START_HEADER);
+                            this.state = State.START_HEADER;
                             return;
                         default:
                             throw new IllegalCharacterException(token);
@@ -302,25 +312,21 @@ public class HttpParser {
         ) {
             return;
         }
-        this.length = 0;
-        final State state = this.state;
-
         while (buffer.hasRemaining()) {
             final HttpTokens.Token token = this.next(buffer);
             if (token == null) {
                 break;
             }
-            this.length++;
-            if (
-                this.maxHeaderByteLength > 0 &&
-                this.length > this.maxHeaderByteLength
-            ) {
-                throw new BadMessageException(
-                    state == State.START_HEADER
-                        ? HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE
-                        : HttpStatus.PAYLOAD_TOO_LARGE
+
+            this.addLength(
+                    l -> {
+                        throw new BadMessageException(
+                            state == State.START_HEADER
+                                ? HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE
+                                : HttpStatus.PAYLOAD_TOO_LARGE
+                        );
+                    }
                 );
-            }
 
             final HttpTokens.Type type = token.getType();
             final char ch = token.getChar();
@@ -331,15 +337,13 @@ public class HttpParser {
                     // HEADER 状态的下一个状态一定是 HEADER_NAME，头字段的名称首字符一定为字母
                     switch (type) {
                         case ALPHA:
-                            this.setState(State.HEADER_NAME);
-                            this.string.setLength(0);
                             this.string.append(ch);
-                            this.value.setLength(0);
-                            this.length = 1;
+                            this.headerState = this.state;
+                            this.state = State.HEADER_NAME;
                             break;
                         // 头字段部分结束，进入 CONTENT 部分
                         case LF:
-                            this.setState(State.START_CONTENT);
+                            this.state = State.START_CONTENT;
                             return;
                         default:
                             throw new IllegalCharacterException(token);
@@ -355,12 +359,11 @@ public class HttpParser {
                             break;
                         // 分隔符，切换成头字段分隔符状态
                         case COLON:
-                            this.setState(State.HEADER_COLON);
+                            this.state = State.HEADER_COLON;
                             break;
                         // 遇到换行，说明这是一个无值的头字段
                         case LF:
-                            this.addHeader(this.string, this.value, state);
-                            this.length = 0;
+                            this.addHeader();
                             break;
                         default:
                             throw new IllegalCharacterException(token);
@@ -379,13 +382,12 @@ public class HttpParser {
                         case VCHAR:
                         case COLON:
                         case OTEXT:
-                            this.setState(State.HEADER_VALUE);
                             this.value.append(ch);
+                            this.state = State.HEADER_VALUE;
                             break;
                         // 遇到换行，说明这是一个无值的头字段
                         case LF:
-                            this.addHeader(this.string, this.value, state);
-                            this.length = 0;
+                            this.addHeader();
                             break;
                         default:
                             throw new IllegalCharacterException(token);
@@ -406,8 +408,7 @@ public class HttpParser {
                             break;
                         // 遇到换行，说明当前的 header 已经结束
                         case LF:
-                            this.addHeader(this.string, this.value, state);
-                            this.length = 0;
+                            this.addHeader();
                             break;
                         default:
                             throw new IllegalCharacterException(token);
@@ -426,7 +427,9 @@ public class HttpParser {
         ) {
             return;
         }
+
         if (this.state == State.START_CONTENT) {
+            // 首次解析内容的时候按规则分配
             if (this.contentLength > 0) {
                 this.state = State.FIXED_CONTENT;
             } else if (this.contentLength == 0) {
@@ -438,19 +441,21 @@ public class HttpParser {
                     "Transfer-Encoding and Content-Length must exist one"
                 );
             }
-            this.contents.clear();
         }
+
         while (buffer.hasRemaining()) {
-            out:switch (this.state) {
+            switch (this.state) {
+                // 空内容
                 case EMPTY_CONTENT:
-                    this.contents.add(
+                    this.input.addBuffer(
                             ByteBuffer.allocate(0).asReadOnlyBuffer()
                         );
-                    this.setState(State.END_CONTENT);
+                    this.state = State.END_CONTENT;
                     return;
+                // 定长内容
                 case FIXED_CONTENT:
                     if (this.contentLength == 0) {
-                        this.setState(State.END_CONTENT);
+                        this.state = State.END_CONTENT;
                         return;
                     }
                     final ByteBuffer content = buffer.asReadOnlyBuffer();
@@ -459,65 +464,69 @@ public class HttpParser {
                     }
                     buffer.position(buffer.position() + content.remaining());
                     this.contentLength -= content.remaining();
-                    this.contents.add(content);
+                    this.input.addBuffer(content);
                     return;
+                // 分块内容
                 case CHUNKED_CONTENT:
-                    this.setState(State.CHUNK_SIZE);
-                    break;
                 case CHUNK_SIZE:
-                    StringBuilder size = new StringBuilder();
-                    while (buffer.hasRemaining()) {
-                        final HttpTokens.Token token = this.next(buffer);
-                        if (token == null) {
-                            return;
-                        }
-                        final HttpTokens.Type type = token.getType();
-                        final char ch = token.getChar();
-                        switch (type) {
-                            case ALPHA:
-                            case DIGIT:
-                                size.append(ch);
-                                break;
-                            case LF:
+                    final HttpTokens.Token token = this.next(buffer);
+                    if (token == null) {
+                        return;
+                    }
+                    final HttpTokens.Type type = token.getType();
+                    final char ch = token.getChar();
+                    switch (type) {
+                        case ALPHA:
+                        case DIGIT:
+                            // 拼接分块大小 16 进制数
+                            this.state = State.CHUNK_SIZE;
+                            this.string.append(ch);
+                            break;
+                        case LF:
+                            if (this.state == State.CHUNK_SIZE) {
                                 try {
                                     this.chunkLength =
-                                        Integer.parseInt(size.toString(), 16);
-                                } catch (NumberFormatException e) {
+                                        Integer.parseInt(
+                                            this.string.toString(),
+                                            16
+                                        );
+                                } catch (final NumberFormatException e) {
                                     throw new BadMessageException(
-                                        "Invalid Chunk-length Value"
+                                        "Invalid chunk-length value [" +
+                                        this.string.toString() +
+                                        "]"
                                     );
                                 }
-                                // Chunk 结束
                                 if (this.chunkLength == 0) {
-                                    this.setState(State.END_CONTENT);
-                                    break out;
+                                    // 分块为 0 则代表内容已经结束
+                                    this.state = State.END_CONTENT;
+                                } else {
+                                    // 不为 0 则切换为读取分块内容状态
+                                    this.state = State.CHUNK_CONTENT;
                                 }
-                                this.setState(State.CHUNK_CONTENT);
-                                break out;
-                            default:
-                                throw new IllegalCharacterException(token);
-                        }
+                                this.string.setLength(0);
+                            }
+                            break;
+                        default:
+                            throw new IllegalCharacterException(token);
                     }
                     break;
                 case CHUNK_CONTENT:
                     if (this.chunkLength <= 0) {
-                        this.setState(State.CHUNKED_CONTENT);
+                        // 当分块内容读取完毕时切换到分块的初始状态，进行下一轮分块读取
+                        this.state = State.CHUNKED_CONTENT;
                     } else {
-                        ByteBuffer chunk = buffer.asReadOnlyBuffer();
+                        final ByteBuffer chunk = buffer.asReadOnlyBuffer();
                         if (buffer.remaining() > this.chunkLength) {
                             chunk.limit(chunk.position() + this.chunkLength);
                         }
                         this.chunkLength -= chunk.remaining();
                         buffer.position(buffer.position() + chunk.remaining());
-                        this.contents.add(chunk);
-                        HttpTokens.Token token = this.next(buffer);
-                        if (token != null && token.getType() != Type.LF) {
-                            throw new IllegalCharacterException(token);
-                        }
+                        this.input.addBuffer(chunk);
                     }
                     break;
                 case END_CONTENT:
-                    this.setState(State.TRAILER);
+                    this.state = State.TRAILER;
                     return;
                 default:
                     throw new IllegalStateException(this.state.toString());
@@ -525,23 +534,21 @@ public class HttpParser {
         }
     }
 
-    private void addHeader(
-        final StringBuilder name,
-        final StringBuilder value,
-        final State nextState
-    ) {
-        final String headerName = name.toString();
+    private void addHeader() {
+        final String headerName = this.string.toString();
 
-        if (nextState == State.TRAILER && !this.trailers.contains(headerName)) {
+        if (
+            this.headerState == State.TRAILER &&
+            !this.trailers.contains(headerName)
+        ) {
             throw new BadMessageException("Header is not defined in Trailer");
         }
 
-        final String headerValue = value.toString();
+        final String headerValue = this.value.toString();
         final List<String> list =
             this.headers.getOrDefault(headerName, new ArrayList<>());
         list.add(headerValue);
         this.headers.put(headerName, list);
-        this.setState(nextState);
 
         switch (headerName.toLowerCase()) {
             case CONTENT_LENGTH:
@@ -578,6 +585,12 @@ public class HttpParser {
             default:
             //
         }
+
+        // 重置
+        this.string.setLength(0);
+        this.value.setLength(0);
+        this.length = 0;
+        this.state = this.headerState;
     }
 
     private void parseTrailer(final ByteBuffer buffer) {
@@ -608,11 +621,20 @@ public class HttpParser {
         }
     }
 
-    private void setState(final State state) {
-        this.state = state;
+    private void addLength(Consumer<Integer> consumer) {
+        this.length++;
+        if (
+            this.maxHeaderByteLength > 0 &&
+            this.length > this.maxHeaderByteLength
+        ) {
+            consumer.accept(this.length);
+        }
     }
 
     private HttpTokens.Token next(final ByteBuffer buffer) {
+        if (!buffer.hasRemaining()) {
+            return null;
+        }
         final byte ch = buffer.get();
         final HttpTokens.Token token = HttpTokens.parse(ch);
         switch (token.getType()) {
@@ -655,7 +677,7 @@ public class HttpParser {
         return method;
     }
 
-    public StringBuilder getUri() {
+    public String getUri() {
         return uri;
     }
 
@@ -667,26 +689,15 @@ public class HttpParser {
         return headers;
     }
 
-    public List<ByteBuffer> getContent() {
-        return contents;
-    }
-
-    public ByteBuffer getAllContent() {
-        final ByteBuffer buffer = ByteBuffer.allocate(
-            this.contents.stream().mapToInt(Buffer::remaining).sum()
-        );
-        for (final ByteBuffer content : this.contents) {
-            buffer.put(content.asReadOnlyBuffer());
-        }
-        buffer.flip();
-        return buffer.asReadOnlyBuffer();
+    public HttpInput getHttpInput() {
+        return input;
     }
 
     public boolean isEof() {
         return eof;
     }
 
-    public void setEof(boolean eof) {
+    public void setEof(final boolean eof) {
         this.eof = eof;
     }
 }

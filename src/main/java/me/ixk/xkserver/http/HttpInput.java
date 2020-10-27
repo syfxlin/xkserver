@@ -28,14 +28,29 @@ public class HttpInput extends ServletInputStream {
 
     @Override
     public int read() throws IOException {
-        if (index.get() >= this.buffers.size()) {
+        if (this.index.get() >= this.buffers.size()) {
             return -1;
         }
-        final ByteBuffer buffer = this.buffers.get(index.get());
+        final ByteBuffer buffer = this.buffers.get(this.index.get());
         if (buffer.hasRemaining()) {
             return buffer.get();
         }
-        index.getAndIncrement();
+        this.index.getAndIncrement();
         return this.read();
+    }
+
+    public boolean hasNext() {
+        if (this.index.get() >= this.buffers.size()) {
+            return false;
+        }
+        return this.buffers.get(this.index.get()).hasRemaining();
+    }
+
+    @Override
+    public synchronized void reset() throws IOException {
+        for (ByteBuffer buffer : this.buffers) {
+            buffer.rewind();
+        }
+        this.index.set(0);
     }
 }
