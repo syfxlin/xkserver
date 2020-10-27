@@ -7,14 +7,15 @@ package me.ixk.xkserver.conntecor;
 
 import java.util.concurrent.ThreadPoolExecutor.AbortPolicy;
 import java.util.concurrent.TimeUnit;
+import me.ixk.xkserver.life.AbstractLifeCycle;
 import me.ixk.xkserver.pool.ThreadPoolExecutor;
 
 /**
  * @author Otstar Lin
  * @date 2020/10/19 上午 11:31
  */
-public class Server {
-    private final ThreadPoolExecutor poolExecutor = ThreadPoolExecutor.create(
+public class Server extends AbstractLifeCycle {
+    private final ThreadPoolExecutor executor = ThreadPoolExecutor.create(
         8,
         18,
         0L,
@@ -28,25 +29,27 @@ public class Server {
         new AbortPolicy()
     );
 
-    private final PollerManager manager;
-    private final Acceptor acceptor;
+    private final ServerConnector connector;
 
     public Server() {
-        this.manager = new PollerManager(this.poolExecutor, 4);
-        this.acceptor = new Acceptor(1, this.manager);
+        this.connector = new ServerConnector(this, 4);
     }
 
-    public void start() {
-        try {
-            this.acceptor.start();
-            this.manager.start();
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
+    public ThreadPoolExecutor getExecutor() {
+        return executor;
+    }
+
+    @Override
+    public void doStart() throws Exception {
+        this.connector.start();
     }
 
     public static void main(final String[] args) {
         final Server server = new Server();
-        server.start();
+        try {
+            server.start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

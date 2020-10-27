@@ -5,6 +5,7 @@
 
 package me.ixk.xkserver.conntecor;
 
+import cn.hutool.core.io.IoUtil;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -18,7 +19,9 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import me.ixk.xkserver.http.HttpInput;
 import me.ixk.xkserver.life.AbstractLifeCycle;
 import me.ixk.xkserver.pool.EatWhatYouKill;
 import me.ixk.xkserver.pool.ExecutionStrategy;
@@ -206,6 +209,19 @@ public class Poller extends AbstractLifeCycle implements Runnable {
                     // final ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
                     // sc.read(byteBuffer);
                     // log.info("Msg: {}", new String(byteBuffer.array()).trim());
+                    HttpInput input = new HttpInput();
+                    while (true) {
+                        ByteBuffer buffer = ByteBuffer.allocate(10);
+                        if (this.channel.read(buffer) <= 0) {
+                            break;
+                        }
+                        buffer.flip();
+                        input.addBuffer(buffer.asReadOnlyBuffer());
+                    }
+                    final String s = IoUtil
+                        .getReader(input, StandardCharsets.UTF_8)
+                        .lines()
+                        .collect(Collectors.joining("\n"));
                     log.info("Poller: {}", Poller.this.id);
                     this.channel.write(
                             ByteBuffer.wrap(

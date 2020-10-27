@@ -13,9 +13,30 @@ import java.util.concurrent.Executor;
  */
 public interface Connector {
     /**
+     * 获取服务器
+     *
+     * @return 服务器
+     */
+    Server getServer();
+
+    /**
      * 获取线程池
      *
      * @return 线程池
      */
     Executor getExecutor();
+
+    /**
+     * 获取 Poller 管理器
+     *
+     * @return Poller 管理器
+     */
+    PollerManager getPollerManager();
+
+    /**
+     * 获取连接器
+     *
+     * @return 连接器
+     */
+    Acceptor getAcceptor();
 }

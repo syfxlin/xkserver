@@ -117,7 +117,7 @@ public class HttpParser {
     private final List<ByteBuffer> contents;
     private final Set<String> trailers;
     private boolean hasCr = false;
-    private final int maxHeaderByteLength = -1;
+    private int maxHeaderByteLength = -1;
 
     private final StringBuilder string = new StringBuilder();
     private final StringBuilder value = new StringBuilder();
@@ -126,12 +126,17 @@ public class HttpParser {
     private boolean eof = false;
 
     public HttpParser() {
+        this(-1);
+    }
+
+    public HttpParser(final int maxHeaderByteLength) {
         this.method = HttpMethod.GET;
         this.uri = new StringBuilder();
         this.version = HttpVersion.HTTP_1_1;
         this.headers = new ConcurrentHashMap<>();
         this.contents = new ArrayList<>();
         this.trailers = new HashSet<>();
+        this.maxHeaderByteLength = maxHeaderByteLength;
     }
 
     public void parse(final ByteBuffer buffer) {

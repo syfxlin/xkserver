@@ -18,13 +18,11 @@ import me.ixk.xkserver.life.AbstractLifeCycle;
  */
 @Slf4j
 public class Acceptor extends AbstractLifeCycle implements Runnable {
-    private final int id;
     private volatile String name;
     private final ServerSocketChannel acceptChannel;
     private final PollerManager pollerManager;
 
-    public Acceptor(final int id, final PollerManager manager) {
-        this.id = id;
+    public Acceptor(final PollerManager manager) {
         this.pollerManager = manager;
         try {
             this.acceptChannel = ServerSocketChannel.open();
@@ -57,7 +55,7 @@ public class Acceptor extends AbstractLifeCycle implements Runnable {
     public void run() {
         final Thread thread = Thread.currentThread();
         String name = thread.getName();
-        this.name = String.format("acceptor-%d-%s", this.id, name);
+        this.name = String.format("acceptor-%s-%d", name, hashCode());
         thread.setName(this.name);
 
         try {
@@ -77,7 +75,7 @@ public class Acceptor extends AbstractLifeCycle implements Runnable {
     public String toString() {
         String name = this.name;
         if (name == null) {
-            return String.format("acceptor-%d@%x", this.id, hashCode());
+            return String.format("acceptor@%x", hashCode());
         }
         return name;
     }
