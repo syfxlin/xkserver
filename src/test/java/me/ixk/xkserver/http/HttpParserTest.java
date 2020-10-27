@@ -219,7 +219,7 @@ class HttpParserTest {
 
     private void assertStartLine(final HttpParser parser) {
         assertEquals(HttpMethod.GET, parser.getMethod());
-        assertEquals("/url", parser.getUri());
+        assertEquals("/url", parser.getUri().asString());
         assertEquals(HttpVersion.HTTP_1_1, parser.getVersion());
     }
 
@@ -232,9 +232,11 @@ class HttpParserTest {
             "Accept-Encoding",
             "gzip, deflate, br"
         );
-        final Map<String, List<String>> parserHeaders = parser.getHeaders();
+        final Map<String, HttpField> parserHeaders = parser.getHeaders();
         for (final Entry<String, String> entry : headers.entrySet()) {
-            final List<String> list = parserHeaders.get(entry.getKey());
+            final List<String> list = parserHeaders
+                .get(entry.getKey())
+                .getValues();
             if (list == null || list.isEmpty()) {
                 throw new AssertionFailedError(
                     "Header [" + entry.getKey() + "] not exist"

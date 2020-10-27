@@ -5,8 +5,6 @@
 
 package me.ixk.xkserver.http;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -166,27 +164,7 @@ public enum HttpHeader {
     }
 
     public static HttpHeader from(final String name) {
-        HttpHeader header = CACHE.get(name);
-        if (header != null) {
-            return header;
-        }
-        try {
-            final Constructor<HttpHeader> constructor =
-                HttpHeader.class.getDeclaredConstructor(String.class);
-            constructor.setAccessible(true);
-            header = constructor.newInstance(name);
-        } catch (
-            InstantiationException
-            | IllegalAccessException
-            | InvocationTargetException
-            | NoSuchMethodException e
-        ) {
-            header = null;
-        }
-        if (header != null) {
-            CACHE.put(name, header);
-        }
-        return header;
+        return CACHE.get(name);
     }
 
     public enum Value {

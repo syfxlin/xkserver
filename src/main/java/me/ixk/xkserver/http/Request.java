@@ -9,14 +9,25 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.security.Principal;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Locale;
 import java.util.Map;
+import javax.servlet.AsyncContext;
+import javax.servlet.DispatcherType;
 import javax.servlet.RequestDispatcher;
+import javax.servlet.ServletContext;
+import javax.servlet.ServletException;
 import javax.servlet.ServletInputStream;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import javax.servlet.http.HttpUpgradeHandler;
+import javax.servlet.http.Part;
 
 /**
  * Request
@@ -25,6 +36,13 @@ import javax.servlet.http.HttpSession;
  * @date 2020/10/27 上午 8:15
  */
 public class Request implements HttpServletRequest {
+    private final HttpFields httpFields;
+    private final HttpMethod httpMethod;
+
+    public Request(HttpFields httpFields, HttpMethod httpMethod) {
+        this.httpFields = httpFields;
+        this.httpMethod = httpMethod;
+    }
 
     @Override
     public String getAuthType() {
@@ -37,33 +55,33 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public long getDateHeader(String s) {
+    public long getDateHeader(final String name) {
         return 0;
     }
 
     @Override
-    public String getHeader(String s) {
-        return null;
+    public String getHeader(final String name) {
+        return httpFields.getValue(name);
     }
 
     @Override
-    public Enumeration getHeaders(String s) {
-        return null;
+    public Enumeration getHeaders(final String name) {
+        return Collections.enumeration(httpFields.getValues(name));
     }
 
     @Override
     public Enumeration getHeaderNames() {
-        return null;
+        return Collections.enumeration(httpFields.keySet());
     }
 
     @Override
-    public int getIntHeader(String s) {
+    public int getIntHeader(final String name) {
         return 0;
     }
 
     @Override
     public String getMethod() {
-        return null;
+        return httpMethod.asString();
     }
 
     @Override
@@ -92,7 +110,7 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public boolean isUserInRole(String s) {
+    public boolean isUserInRole(final String name) {
         return false;
     }
 
@@ -122,12 +140,17 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public HttpSession getSession(boolean b) {
+    public HttpSession getSession(final boolean b) {
         return null;
     }
 
     @Override
     public HttpSession getSession() {
+        return null;
+    }
+
+    @Override
+    public String changeSessionId() {
         return null;
     }
 
@@ -152,7 +175,35 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public Object getAttribute(String s) {
+    public boolean authenticate(HttpServletResponse httpServletResponse)
+        throws IOException, ServletException {
+        return false;
+    }
+
+    @Override
+    public void login(String name, String name1) throws ServletException {}
+
+    @Override
+    public void logout() throws ServletException {}
+
+    @Override
+    public Collection<Part> getParts() throws IOException, ServletException {
+        return null;
+    }
+
+    @Override
+    public Part getPart(String name) throws IOException, ServletException {
+        return null;
+    }
+
+    @Override
+    public <T extends HttpUpgradeHandler> T upgrade(Class<T> aClass)
+        throws IOException, ServletException {
+        return null;
+    }
+
+    @Override
+    public Object getAttribute(final String name) {
         return null;
     }
 
@@ -167,11 +218,16 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public void setCharacterEncoding(String s)
+    public void setCharacterEncoding(final String name)
         throws UnsupportedEncodingException {}
 
     @Override
     public int getContentLength() {
+        return 0;
+    }
+
+    @Override
+    public long getContentLengthLong() {
         return 0;
     }
 
@@ -186,7 +242,7 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public String getParameter(String s) {
+    public String getParameter(final String name) {
         return null;
     }
 
@@ -196,7 +252,7 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public String[] getParameterValues(String s) {
+    public String[] getParameterValues(final String name) {
         return new String[0];
     }
 
@@ -241,10 +297,10 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public void setAttribute(String s, Object o) {}
+    public void setAttribute(final String name, final Object o) {}
 
     @Override
-    public void removeAttribute(String s) {}
+    public void removeAttribute(final String name) {}
 
     @Override
     public Locale getLocale() {
@@ -262,12 +318,12 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public RequestDispatcher getRequestDispatcher(String s) {
+    public RequestDispatcher getRequestDispatcher(final String name) {
         return null;
     }
 
     @Override
-    public String getRealPath(String s) {
+    public String getRealPath(final String name) {
         return null;
     }
 
@@ -289,5 +345,44 @@ public class Request implements HttpServletRequest {
     @Override
     public int getLocalPort() {
         return 0;
+    }
+
+    @Override
+    public ServletContext getServletContext() {
+        return null;
+    }
+
+    @Override
+    public AsyncContext startAsync() throws IllegalStateException {
+        return null;
+    }
+
+    @Override
+    public AsyncContext startAsync(
+        ServletRequest servletRequest,
+        ServletResponse servletResponse
+    )
+        throws IllegalStateException {
+        return null;
+    }
+
+    @Override
+    public boolean isAsyncStarted() {
+        return false;
+    }
+
+    @Override
+    public boolean isAsyncSupported() {
+        return false;
+    }
+
+    @Override
+    public AsyncContext getAsyncContext() {
+        return null;
+    }
+
+    @Override
+    public DispatcherType getDispatcherType() {
+        return null;
     }
 }

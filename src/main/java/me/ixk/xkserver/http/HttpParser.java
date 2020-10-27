@@ -6,12 +6,8 @@
 package me.ixk.xkserver.http;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import me.ixk.xkserver.http.HttpHeader.Value;
 import me.ixk.xkserver.http.HttpTokens.Type;
@@ -108,9 +104,9 @@ public class HttpParser {
 
     private State state = State.START_LINE;
     private HttpMethod method;
-    private String uri;
+    private HttpUri uri;
     private HttpVersion version;
-    private final Map<String, List<String>> headers;
+    private final HttpFields fields;
     private int contentLength = -1;
     private String transferEncoding = null;
     private int chunkLength = 0;
@@ -137,7 +133,7 @@ public class HttpParser {
         this.method = HttpMethod.GET;
         this.uri = null;
         this.version = HttpVersion.HTTP_1_1;
-        this.headers = new ConcurrentHashMap<>();
+        this.fields = new HttpFields();
         this.input = new HttpInput();
         this.trailers = new HashSet<>();
         this.maxHeaderByteLength = maxHeaderByteLength;
@@ -245,7 +241,7 @@ public class HttpParser {
                             break;
                         // 遇到空格则说明 URL 部分结束，转换到第二个空格状态
                         case SPACE:
-                            this.uri = this.string.toString();
+                            this.uri = new HttpUri(this.string.toString());
                             this.string.setLength(0);
                             this.state = State.SPACE2;
                             break;
@@ -545,10 +541,10 @@ public class HttpParser {
         }
 
         final String headerValue = this.value.toString();
-        final List<String> list =
-            this.headers.getOrDefault(headerName, new ArrayList<>());
-        list.add(headerValue);
-        this.headers.put(headerName, list);
+        final HttpField field =
+            this.fields.getOrDefault(headerName, new HttpField(headerName));
+        field.addValue(headerValue);
+        this.fields.put(headerName.toLowerCase(), field);
 
         switch (headerName.toLowerCase()) {
             case CONTENT_LENGTH:
@@ -580,7 +576,7 @@ public class HttpParser {
                 this.transferEncoding = headerValue;
                 break;
             case TRAILER:
-                this.trailers.addAll(list);
+                this.trailers.addAll(field.getValues());
                 break;
             default:
             //
@@ -677,7 +673,7 @@ public class HttpParser {
         return method;
     }
 
-    public String getUri() {
+    public HttpUri getUri() {
         return uri;
     }
 
@@ -685,8 +681,8 @@ public class HttpParser {
         return version;
     }
 
-    public Map<String, List<String>> getHeaders() {
-        return headers;
+    public HttpFields getHeaders() {
+        return fields;
     }
 
     public HttpInput getHttpInput() {
