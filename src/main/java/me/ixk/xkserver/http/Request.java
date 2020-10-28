@@ -46,6 +46,10 @@ import me.ixk.xkserver.http.HttpHeader.Value;
  * @date 2020/10/27 上午 8:15
  */
 public class Request implements HttpServletRequest {
+    public static final String ALL_HOST_ADDRESS = "0.0.0.0";
+    public static final String IPV6_LEFT = "[";
+    public static final String IPV6_RIGHT = "]";
+    public static final String IPV6_SPLIT = ":";
     private final HttpChannel httpChannel;
     private final HttpFields httpFields;
     private final HttpMethod httpMethod;
@@ -57,20 +61,13 @@ public class Request implements HttpServletRequest {
     private List<Cookie> cookies;
     private String characterEncoding;
 
-    public Request(
-        final HttpChannel httpChannel,
-        final HttpFields httpFields,
-        final HttpMethod httpMethod,
-        final HttpUri httpUri,
-        final HttpVersion httpVersion,
-        final HttpInput httpInput
-    ) {
+    public Request(final HttpChannel httpChannel) {
         this.httpChannel = httpChannel;
-        this.httpFields = httpFields;
-        this.httpMethod = httpMethod;
-        this.httpUri = httpUri;
-        this.httpVersion = httpVersion;
-        this.httpInput = httpInput;
+        this.httpFields = this.httpChannel.getHttpFields();
+        this.httpMethod = this.httpChannel.getHttpMethod();
+        this.httpUri = this.httpChannel.getHttpUri();
+        this.httpVersion = this.httpChannel.getHttpVersion();
+        this.httpInput = this.httpChannel.getHttpInput();
         this.remote =
             (InetSocketAddress) this.httpChannel.getSocket()
                 .getRemoteSocketAddress();
@@ -377,10 +374,14 @@ public class Request implements HttpServletRequest {
     }
 
     private String normalizeHost(String host) {
-        if (host.isEmpty() || host.charAt(0) == '[' || !host.contains(":")) {
+        if (
+            host.isEmpty() ||
+            host.startsWith(IPV6_LEFT) ||
+            !host.contains(IPV6_SPLIT)
+        ) {
             return host;
         }
-        return "[" + host + "]";
+        return IPV6_LEFT + host + IPV6_RIGHT;
     }
 
     @Override
@@ -455,7 +456,7 @@ public class Request implements HttpServletRequest {
         }
         try {
             String name = InetAddress.getLocalHost().getHostName();
-            if ("0.0.0.0".equals(name)) {
+            if (ALL_HOST_ADDRESS.equals(name)) {
                 return null;
             }
             return this.normalizeHost(name);
@@ -475,7 +476,7 @@ public class Request implements HttpServletRequest {
         }
         try {
             String name = InetAddress.getLocalHost().getHostAddress();
-            if ("0.0.0.0".equals(name)) {
+            if (ALL_HOST_ADDRESS.equals(name)) {
                 return null;
             }
             return this.normalizeHost(name);

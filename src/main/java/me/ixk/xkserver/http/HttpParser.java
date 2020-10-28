@@ -102,15 +102,11 @@ public class HttpParser {
         END,
     }
 
+    private final RequestHandler handler;
     private State state = State.START_LINE;
-    private HttpMethod method;
-    private HttpUri uri;
-    private HttpVersion version;
-    private final HttpFields fields;
     private int contentLength = -1;
     private String transferEncoding = null;
     private int chunkLength = 0;
-    private final HttpInput input;
     private final Set<String> trailers;
     private boolean hasCr = false;
     private int maxHeaderByteLength = -1;
@@ -125,41 +121,46 @@ public class HttpParser {
 
     private boolean eof = false;
 
-    public HttpParser() {
-        this(-1);
+    public HttpParser(RequestHandler handler) {
+        this(handler, -1);
     }
 
-    public HttpParser(final int maxHeaderByteLength) {
-        this.method = HttpMethod.GET;
-        this.uri = null;
-        this.version = HttpVersion.HTTP_1_1;
-        this.fields = new HttpFields();
-        this.input = new HttpInput();
+    public HttpParser(RequestHandler handler, final int maxHeaderByteLength) {
+        this.handler = handler;
         this.trailers = new HashSet<>();
         this.maxHeaderByteLength = maxHeaderByteLength;
     }
 
     public void parse(final ByteBuffer buffer) {
-        if (this.state == State.END) {
-            throw new IllegalStateException("HttpParser status is END");
-        }
-        if (this.state == State.START_LINE) {
-            this.state = State.METHOD;
-        }
-        // 请求行 "Method Url Version" "GET /url HTTP/1.1"
-        this.parseLine(buffer);
-        // 头字段 "Name: Value" "Host: ixk.me"
-        this.parseHeaders(buffer);
-        // 解析内容
-        this.parseContent(buffer);
-        // Trailer
-        this.parseTrailer(buffer);
+        try {
+            if (this.state == State.END) {
+                throw new IllegalStateException("HttpParser status is END");
+            }
+            if (this.state == State.START_LINE) {
+                this.state = State.METHOD;
+            }
+            // 请求行 "Method Url Version" "GET /url HTTP/1.1"
+            this.parseLine(buffer);
+            // 头字段 "Name: Value" "Host: ixk.me"
+            this.parseHeaders(buffer);
+            // 解析内容
+            this.parseContent(buffer);
+            // Trailer
+            this.parseTrailer(buffer);
 
-        // 清除末尾多余的换行
-        this.parseCrLf(buffer);
+            // 清除末尾多余的换行
+            this.parseCrLf(buffer);
 
-        if (this.isEof() && !buffer.hasRemaining()) {
-            this.state = State.END;
+            if (this.isEof() && !buffer.hasRemaining()) {
+                this.handler.requestComplete();
+                this.state = State.END;
+            }
+        } catch (BadMessageException e) {
+            this.handler.failure(e);
+        } catch (Throwable e) {
+            this.handler.failure(
+                    new BadMessageException(HttpStatus.BAD_REQUEST, e)
+                );
         }
     }
 
@@ -198,11 +199,13 @@ public class HttpParser {
                             break;
                         // 空格切换到 SPACE1 状态
                         case SPACE:
-                            this.method =
-                                HttpMethod.from(this.string.toString());
-                            if (this.method == null) {
+                            HttpMethod method = HttpMethod.from(
+                                this.string.toString()
+                            );
+                            if (method == null) {
                                 throw new BadMessageException();
                             }
+                            this.handler.setHttpMethod(method);
                             this.string.setLength(0);
                             this.state = State.SPACE1;
                             break;
@@ -241,7 +244,9 @@ public class HttpParser {
                             break;
                         // 遇到空格则说明 URL 部分结束，转换到第二个空格状态
                         case SPACE:
-                            this.uri = new HttpUri(this.string.toString());
+                            this.handler.setHttpUri(
+                                    new HttpUri(this.string.toString())
+                                );
                             this.string.setLength(0);
                             this.state = State.SPACE2;
                             break;
@@ -276,14 +281,16 @@ public class HttpParser {
                             break;
                         // 遇到换行说明请求行结束，此时验证 HTTP 版本字段是否符合规范，如果是，则结束请求行的解析，同时切换到解析头字段的状态
                         case LF:
-                            this.version =
-                                HttpVersion.from(this.string.toString());
-                            if (this.version == null) {
+                            HttpVersion version = HttpVersion.from(
+                                this.string.toString()
+                            );
+                            if (version == null) {
                                 throw new BadMessageException(
                                     HttpStatus.HTTP_VERSION_NOT_SUPPORTED,
                                     "Unknown Version"
                                 );
                             }
+                            this.handler.setHttpVersion(version);
                             this.string.setLength(0);
                             this.length = 0;
                             this.state = State.START_HEADER;
@@ -339,6 +346,11 @@ public class HttpParser {
                             break;
                         // 头字段部分结束，进入 CONTENT 部分
                         case LF:
+                            if (this.headerState != State.TRAILER) {
+                                this.handler.headerComplete();
+                            } else {
+                                this.handler.trailerComplete();
+                            }
                             this.state = State.START_CONTENT;
                             return;
                         default:
@@ -443,7 +455,7 @@ public class HttpParser {
             switch (this.state) {
                 // 空内容
                 case EMPTY_CONTENT:
-                    this.input.addBuffer(
+                    this.handler.addContent(
                             ByteBuffer.allocate(0).asReadOnlyBuffer()
                         );
                     this.state = State.END_CONTENT;
@@ -460,7 +472,7 @@ public class HttpParser {
                     }
                     buffer.position(buffer.position() + content.remaining());
                     this.contentLength -= content.remaining();
-                    this.input.addBuffer(content);
+                    this.handler.addContent(content);
                     return;
                 // 分块内容
                 case CHUNKED_CONTENT:
@@ -518,10 +530,11 @@ public class HttpParser {
                         }
                         this.chunkLength -= chunk.remaining();
                         buffer.position(buffer.position() + chunk.remaining());
-                        this.input.addBuffer(chunk);
+                        this.handler.addContent(chunk);
                     }
                     break;
                 case END_CONTENT:
+                    this.handler.contentComplete();
                     this.state = State.TRAILER;
                     return;
                 default:
@@ -541,10 +554,16 @@ public class HttpParser {
         }
 
         final String headerValue = this.value.toString();
-        final HttpField field =
-            this.fields.getOrDefault(headerName, new HttpField(headerName));
+        HttpField field = this.handler.getHttpField(headerName);
+        if (field == null) {
+            field = new HttpField(headerName);
+        }
         field.addValue(headerValue);
-        this.fields.put(headerName.toLowerCase(), field);
+        if (this.headerState != State.TRAILER) {
+            this.handler.addHttpHeader(field);
+        } else {
+            this.handler.addHttpTrailer(field);
+        }
 
         switch (headerName.toLowerCase()) {
             case CONTENT_LENGTH:
@@ -669,31 +688,93 @@ public class HttpParser {
         return token;
     }
 
-    public HttpMethod getMethod() {
-        return method;
-    }
-
-    public HttpUri getUri() {
-        return uri;
-    }
-
-    public HttpVersion getVersion() {
-        return version;
-    }
-
-    public HttpFields getHeaders() {
-        return fields;
-    }
-
-    public HttpInput getHttpInput() {
-        return input;
-    }
-
     public boolean isEof() {
         return eof;
     }
 
     public void setEof(final boolean eof) {
         this.eof = eof;
+    }
+
+    public interface RequestHandler {
+        /**
+         * 设置 Http 方法
+         *
+         * @param method 方法
+         */
+        void setHttpMethod(HttpMethod method);
+
+        /**
+         * 设置 HttpUri
+         *
+         * @param uri URI
+         */
+        void setHttpUri(HttpUri uri);
+
+        /**
+         * 设置 Http 版本
+         *
+         * @param version 版本
+         */
+        void setHttpVersion(HttpVersion version);
+
+        /**
+         * 获取 Http 字段
+         *
+         * @param name 字段名称
+         *
+         * @return Http 字段
+         */
+        HttpField getHttpField(String name);
+
+        /**
+         * 添加 Http 头
+         *
+         * @param field 头字段
+         */
+        void addHttpHeader(HttpField field);
+
+        /**
+         * 添加 Http 尾
+         *
+         * @param field 尾字段
+         */
+        void addHttpTrailer(HttpField field);
+
+        /**
+         * 添加内容
+         *
+         * @param buffer ByteBuffer
+         */
+        void addContent(ByteBuffer buffer);
+
+        /**
+         * 失败时调用
+         *
+         * @param e 错误
+         */
+        default void failure(BadMessageException e) {
+            throw e;
+        }
+
+        /**
+         * 头字段解析完成
+         */
+        default void headerComplete() {}
+
+        /**
+         * 内容解析完成
+         */
+        default void contentComplete() {}
+
+        /**
+         * 尾字段解析完成
+         */
+        default void trailerComplete() {}
+
+        /**
+         * 请求解析完成
+         */
+        default void requestComplete() {}
     }
 }
