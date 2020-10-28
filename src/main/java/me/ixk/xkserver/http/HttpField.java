@@ -7,7 +7,9 @@ package me.ixk.xkserver.http;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * HttpField
@@ -87,6 +89,52 @@ public class HttpField {
 
     public boolean is(HttpField field) {
         return this.equals(field);
+    }
+
+    public Map<String, String> getParams() {
+        return this.getParams(0);
+    }
+
+    public Map<String, String> getParams(int index) {
+        final String value = this.getValue(index);
+        final String[] values = value.split(";");
+        Map<String, String> params = new ConcurrentHashMap<>(values.length);
+        for (String kv : values) {
+            final String[] split = kv.split("=");
+            params.put(
+                split[0].trim(),
+                split.length > 1 ? split[1].trim() : null
+            );
+        }
+        return params;
+    }
+
+    public String getParam(String name) {
+        return this.getParam(name, 0);
+    }
+
+    public String getParam(String name, int index) {
+        final Map<String, String> params = this.getParams(index);
+        if (params != null) {
+            return params.get(name);
+        }
+        return null;
+    }
+
+    public String stripParam(int index) {
+        final String value = this.getValue(index);
+        if (value == null) {
+            return null;
+        }
+        final int i = value.indexOf(";");
+        if (i == -1) {
+            return value.trim();
+        }
+        return value.substring(0, i).trim();
+    }
+
+    public int size() {
+        return this.getValues().size();
     }
 
     @Override

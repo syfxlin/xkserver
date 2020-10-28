@@ -7,13 +7,22 @@ package me.ixk.xkserver.http;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.nio.charset.Charset;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import javax.servlet.AsyncContext;
 import javax.servlet.DispatcherType;
 import javax.servlet.RequestDispatcher;
@@ -28,6 +37,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import javax.servlet.http.HttpUpgradeHandler;
 import javax.servlet.http.Part;
+import me.ixk.xkserver.http.HttpHeader.Value;
 
 /**
  * Request
@@ -36,12 +46,37 @@ import javax.servlet.http.Part;
  * @date 2020/10/27 上午 8:15
  */
 public class Request implements HttpServletRequest {
+    private final HttpChannel httpChannel;
     private final HttpFields httpFields;
     private final HttpMethod httpMethod;
+    private final HttpUri httpUri;
+    private final HttpVersion httpVersion;
+    private final HttpInput httpInput;
+    private final InetSocketAddress remote;
+    private final InetSocketAddress local;
+    private List<Cookie> cookies;
+    private String characterEncoding;
 
-    public Request(HttpFields httpFields, HttpMethod httpMethod) {
+    public Request(
+        final HttpChannel httpChannel,
+        final HttpFields httpFields,
+        final HttpMethod httpMethod,
+        final HttpUri httpUri,
+        final HttpVersion httpVersion,
+        final HttpInput httpInput
+    ) {
+        this.httpChannel = httpChannel;
         this.httpFields = httpFields;
         this.httpMethod = httpMethod;
+        this.httpUri = httpUri;
+        this.httpVersion = httpVersion;
+        this.httpInput = httpInput;
+        this.remote =
+            (InetSocketAddress) this.httpChannel.getSocket()
+                .getRemoteSocketAddress();
+        this.local =
+            (InetSocketAddress) this.httpChannel.getSocket()
+                .getLocalSocketAddress();
     }
 
     @Override
@@ -51,7 +86,23 @@ public class Request implements HttpServletRequest {
 
     @Override
     public Cookie[] getCookies() {
-        return new Cookie[0];
+        if (this.cookies == null) {
+            this.cookies = new ArrayList<>();
+            final HttpField field =
+                this.httpFields.get(HttpHeader.COOKIE.asString());
+            if (field != null) {
+                for (int i = 0; i < field.size(); i++) {
+                    for (final Entry<String, String> entry : field
+                        .getParams(i)
+                        .entrySet()) {
+                        this.cookies.add(
+                                new Cookie(entry.getKey(), entry.getValue())
+                            );
+                    }
+                }
+            }
+        }
+        return this.cookies.toArray(Cookie[]::new);
     }
 
     @Override
@@ -65,12 +116,12 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public Enumeration getHeaders(final String name) {
+    public Enumeration<String> getHeaders(final String name) {
         return Collections.enumeration(httpFields.getValues(name));
     }
 
     @Override
-    public Enumeration getHeaderNames() {
+    public Enumeration<String> getHeaderNames() {
         return Collections.enumeration(httpFields.keySet());
     }
 
@@ -175,13 +226,14 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public boolean authenticate(HttpServletResponse httpServletResponse)
+    public boolean authenticate(final HttpServletResponse httpServletResponse)
         throws IOException, ServletException {
         return false;
     }
 
     @Override
-    public void login(String name, String name1) throws ServletException {}
+    public void login(final String name, final String name1)
+        throws ServletException {}
 
     @Override
     public void logout() throws ServletException {}
@@ -192,12 +244,13 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public Part getPart(String name) throws IOException, ServletException {
+    public Part getPart(final String name)
+        throws IOException, ServletException {
         return null;
     }
 
     @Override
-    public <T extends HttpUpgradeHandler> T upgrade(Class<T> aClass)
+    public <T extends HttpUpgradeHandler> T upgrade(final Class<T> aClass)
         throws IOException, ServletException {
         return null;
     }
@@ -208,37 +261,54 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public Enumeration getAttributeNames() {
+    public Enumeration<String> getAttributeNames() {
         return null;
     }
 
     @Override
     public String getCharacterEncoding() {
-        return null;
+        if (this.characterEncoding == null) {
+            final HttpField field =
+                this.httpFields.get(HttpHeader.CONTENT_TYPE.asString());
+            if (field != null) {
+                this.characterEncoding =
+                    field.getParam(Value.CHARSET.asString());
+            }
+        }
+        return this.characterEncoding;
     }
 
     @Override
-    public void setCharacterEncoding(final String name)
-        throws UnsupportedEncodingException {}
+    public void setCharacterEncoding(final String encoding)
+        throws UnsupportedEncodingException {
+        Charset.forName(encoding);
+        this.characterEncoding = encoding;
+    }
 
     @Override
     public int getContentLength() {
-        return 0;
+        final HttpField field =
+            this.httpFields.get(HttpHeader.CONTENT_LENGTH.asString());
+        return field == null ? -1 : Integer.parseInt(field.getValue());
     }
 
     @Override
     public long getContentLengthLong() {
-        return 0;
+        final HttpField field =
+            this.httpFields.get(HttpHeader.CONTENT_LENGTH.asString());
+        return field == null ? -1 : Long.parseLong(field.getValue());
     }
 
     @Override
     public String getContentType() {
-        return null;
+        final HttpField field =
+            this.httpFields.get(HttpHeader.CONTENT_TYPE.asString());
+        return field == null ? null : field.getValue();
     }
 
     @Override
     public ServletInputStream getInputStream() throws IOException {
-        return null;
+        return this.httpInput;
     }
 
     @Override
@@ -247,7 +317,7 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public Enumeration getParameterNames() {
+    public Enumeration<String> getParameterNames() {
         return null;
     }
 
@@ -257,43 +327,60 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public Map getParameterMap() {
+    public Map<String, String[]> getParameterMap() {
         return null;
     }
 
     @Override
     public String getProtocol() {
-        return null;
+        return this.httpVersion.asString();
     }
 
     @Override
     public String getScheme() {
-        return null;
+        return this.httpUri.getScheme();
     }
 
     @Override
     public String getServerName() {
-        return null;
+        return this.httpUri.getHost();
     }
 
     @Override
     public int getServerPort() {
-        return 0;
+        return this.httpUri.getPort();
     }
 
     @Override
     public BufferedReader getReader() throws IOException {
-        return null;
+        return new BufferedReader(new InputStreamReader(this.httpInput));
     }
 
     @Override
     public String getRemoteAddr() {
-        return null;
+        if (this.remote == null) {
+            return "";
+        }
+        final InetAddress address = this.remote.getAddress();
+        final String result = address == null
+            ? this.remote.getHostString()
+            : address.getHostAddress();
+        return this.normalizeHost(result);
     }
 
     @Override
     public String getRemoteHost() {
-        return null;
+        if (this.remote == null) {
+            return "";
+        }
+        return this.normalizeHost(this.remote.getHostString());
+    }
+
+    private String normalizeHost(String host) {
+        if (host.isEmpty() || host.charAt(0) == '[' || !host.contains(":")) {
+            return host;
+        }
+        return "[" + host + "]";
     }
 
     @Override
@@ -304,17 +391,46 @@ public class Request implements HttpServletRequest {
 
     @Override
     public Locale getLocale() {
-        return null;
+        final HttpField field =
+            this.httpFields.get(HttpHeader.ACCEPT_LANGUAGE.asString());
+        if (field == null) {
+            return Locale.getDefault();
+        }
+        final String language = field.getValue();
+        return this.parseLocal(language);
+    }
+
+    private Locale parseLocal(String language) {
+        String country = "";
+        final int dash = language.indexOf('-');
+        if (dash > -1) {
+            country = language.substring(dash + 1).trim();
+            language = language.substring(0, dash).trim();
+        }
+        return new Locale(language, country);
     }
 
     @Override
-    public Enumeration getLocales() {
-        return null;
+    public Enumeration<Locale> getLocales() {
+        final HttpField field =
+            this.httpFields.get(HttpHeader.ACCEPT_LANGUAGE.asString());
+        if (field == null) {
+            return Collections.enumeration(
+                Collections.singletonList(Locale.getDefault())
+            );
+        }
+        return Collections.enumeration(
+            field
+                .getValues()
+                .stream()
+                .map(this::parseLocal)
+                .collect(Collectors.toList())
+        );
     }
 
     @Override
     public boolean isSecure() {
-        return false;
+        return "https".equalsIgnoreCase(this.getScheme());
     }
 
     @Override
@@ -329,22 +445,48 @@ public class Request implements HttpServletRequest {
 
     @Override
     public int getRemotePort() {
-        return 0;
+        return this.remote == null ? 0 : this.remote.getPort();
     }
 
     @Override
     public String getLocalName() {
-        return null;
+        if (this.local != null) {
+            return this.normalizeHost(this.local.getHostString());
+        }
+        try {
+            String name = InetAddress.getLocalHost().getHostName();
+            if ("0.0.0.0".equals(name)) {
+                return null;
+            }
+            return this.normalizeHost(name);
+        } catch (UnknownHostException e) {
+            return null;
+        }
     }
 
     @Override
     public String getLocalAddr() {
-        return null;
+        if (this.local != null) {
+            InetAddress address = this.local.getAddress();
+            String result = address == null
+                ? this.local.getHostString()
+                : address.getHostAddress();
+            return this.normalizeHost(result);
+        }
+        try {
+            String name = InetAddress.getLocalHost().getHostAddress();
+            if ("0.0.0.0".equals(name)) {
+                return null;
+            }
+            return this.normalizeHost(name);
+        } catch (UnknownHostException e) {
+            return null;
+        }
     }
 
     @Override
     public int getLocalPort() {
-        return 0;
+        return this.local == null ? 0 : this.local.getPort();
     }
 
     @Override
@@ -359,8 +501,8 @@ public class Request implements HttpServletRequest {
 
     @Override
     public AsyncContext startAsync(
-        ServletRequest servletRequest,
-        ServletResponse servletResponse
+        final ServletRequest servletRequest,
+        final ServletResponse servletResponse
     )
         throws IllegalStateException {
         return null;

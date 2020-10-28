@@ -169,6 +169,10 @@ public enum HttpHeader {
 
     public enum Value {
         /**
+         * Content-Type: charset=UTF-8
+         */
+        CHARSET("charset"),
+        /**
          * Connection: close
          */
         CLOSE("close"),

@@ -64,10 +64,7 @@ public class HttpFields implements Map<String, HttpField> {
 
     @Override
     public boolean containsKey(Object key) {
-        if (key instanceof String) {
-            return this.fields.containsKey(((String) key).toLowerCase());
-        }
-        return false;
+        return this.fields.containsKey(key.toString().toLowerCase());
     }
 
     @Override
@@ -77,10 +74,7 @@ public class HttpFields implements Map<String, HttpField> {
 
     @Override
     public HttpField get(Object key) {
-        if (key instanceof String) {
-            return this.fields.get(((String) key).toLowerCase());
-        }
-        return null;
+        return this.fields.get(key.toString().toLowerCase());
     }
 
     @Override
@@ -90,10 +84,7 @@ public class HttpFields implements Map<String, HttpField> {
 
     @Override
     public HttpField remove(Object key) {
-        if (key instanceof String) {
-            return this.fields.remove(((String) key).toLowerCase());
-        }
-        return null;
+        return this.fields.remove(key.toString().toLowerCase());
     }
 
     @Override
