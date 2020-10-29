@@ -21,7 +21,6 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import javax.servlet.AsyncContext;
 import javax.servlet.DispatcherType;
@@ -46,34 +45,66 @@ import me.ixk.xkserver.http.HttpHeader.Value;
  * @date 2020/10/27 上午 8:15
  */
 public class Request implements HttpServletRequest {
+
     public static final String ALL_HOST_ADDRESS = "0.0.0.0";
     public static final String IPV6_LEFT = "[";
     public static final String IPV6_RIGHT = "]";
     public static final String IPV6_SPLIT = ":";
     private final HttpChannel httpChannel;
-    private final HttpFields httpFields;
-    private final HttpMethod httpMethod;
-    private final HttpUri httpUri;
-    private final HttpVersion httpVersion;
-    private final HttpInput httpInput;
-    private final InetSocketAddress remote;
-    private final InetSocketAddress local;
+    private HttpFields httpFields;
+    private HttpMethod httpMethod;
+    private HttpUri httpUri;
+    private HttpVersion httpVersion;
+    private HttpInput httpInput;
+    private InetSocketAddress remote;
+    private InetSocketAddress local;
     private List<Cookie> cookies;
     private String characterEncoding;
 
     public Request(final HttpChannel httpChannel) {
         this.httpChannel = httpChannel;
-        this.httpFields = this.httpChannel.getHttpFields();
-        this.httpMethod = this.httpChannel.getHttpMethod();
-        this.httpUri = this.httpChannel.getHttpUri();
-        this.httpVersion = this.httpChannel.getHttpVersion();
-        this.httpInput = this.httpChannel.getHttpInput();
-        this.remote =
-            (InetSocketAddress) this.httpChannel.getSocket()
-                .getRemoteSocketAddress();
-        this.local =
-            (InetSocketAddress) this.httpChannel.getSocket()
-                .getLocalSocketAddress();
+        this.setMetaData(httpChannel);
+    }
+
+    private void setMetaData(final HttpChannel channel) {
+        this.httpFields = channel.getHttpFields();
+        this.httpMethod = channel.getHttpMethod();
+        this.httpVersion = channel.getHttpVersion();
+        this.httpInput = channel.getHttpInput();
+        this.remote = (InetSocketAddress) channel.getSocket()
+                                                 .getRemoteSocketAddress();
+        this.local = (InetSocketAddress) channel.getSocket()
+                                                .getLocalSocketAddress();
+        final HttpUri uri = channel.getHttpUri();
+        if (uri.isAbsolute() && uri.hasAuthority() && uri.getPath() != null) {
+            this.httpUri = uri;
+        } else {
+            final HttpUri build = new HttpUri(uri);
+            if (!build.isAbsolute()) {
+                build.setScheme("http");
+            }
+            if (build.getPath() == null) {
+                build.setPath("/");
+            }
+            if (!uri.hasAuthority()) {
+                final String hostAndPort = this.httpFields
+                    .getValue(HttpHeader.HOST.asString());
+                if (hostAndPort != null) {
+                    final String[] split = hostAndPort.split(":");
+                    build.setHost(split[0]);
+                    if (split.length > 1) {
+                        build.setPort(Integer.parseInt(split[1]));
+                    } else {
+                        build
+                            .setPort(this.schemeDefaultPort(build.getScheme()));
+                    }
+                } else {
+                    build.setHost(this.findServerHost());
+                    build.setPort(this.findServerPort());
+                }
+            }
+            this.httpUri = build;
+        }
     }
 
     @Override
@@ -85,16 +116,14 @@ public class Request implements HttpServletRequest {
     public Cookie[] getCookies() {
         if (this.cookies == null) {
             this.cookies = new ArrayList<>();
-            final HttpField field =
-                this.httpFields.get(HttpHeader.COOKIE.asString());
+            final HttpField field = this.httpFields
+                .get(HttpHeader.COOKIE.asString());
             if (field != null) {
                 for (int i = 0; i < field.size(); i++) {
-                    for (final Entry<String, String> entry : field
-                        .getParams(i)
-                        .entrySet()) {
+                    for (final String value : field.getParamValues(i)) {
+                        final String[] cookie = value.split("=");
                         this.cookies.add(
-                                new Cookie(entry.getKey(), entry.getValue())
-                            );
+                            new Cookie(cookie[0].trim(), cookie[1].trim()));
                     }
                 }
             }
@@ -149,7 +178,8 @@ public class Request implements HttpServletRequest {
 
     @Override
     public String getQueryString() {
-        return null;
+        final HttpUri uri = this.httpUri;
+        return uri == null ? null : uri.getQuery();
     }
 
     @Override
@@ -265,11 +295,11 @@ public class Request implements HttpServletRequest {
     @Override
     public String getCharacterEncoding() {
         if (this.characterEncoding == null) {
-            final HttpField field =
-                this.httpFields.get(HttpHeader.CONTENT_TYPE.asString());
+            final HttpField field = this.httpFields
+                .get(HttpHeader.CONTENT_TYPE.asString());
             if (field != null) {
-                this.characterEncoding =
-                    field.getParam(Value.CHARSET.asString());
+                this.characterEncoding = field
+                    .getParam(Value.CHARSET.asString());
             }
         }
         return this.characterEncoding;
@@ -284,22 +314,22 @@ public class Request implements HttpServletRequest {
 
     @Override
     public int getContentLength() {
-        final HttpField field =
-            this.httpFields.get(HttpHeader.CONTENT_LENGTH.asString());
+        final HttpField field = this.httpFields
+            .get(HttpHeader.CONTENT_LENGTH.asString());
         return field == null ? -1 : Integer.parseInt(field.getValue());
     }
 
     @Override
     public long getContentLengthLong() {
-        final HttpField field =
-            this.httpFields.get(HttpHeader.CONTENT_LENGTH.asString());
+        final HttpField field = this.httpFields
+            .get(HttpHeader.CONTENT_LENGTH.asString());
         return field == null ? -1 : Long.parseLong(field.getValue());
     }
 
     @Override
     public String getContentType() {
-        final HttpField field =
-            this.httpFields.get(HttpHeader.CONTENT_TYPE.asString());
+        final HttpField field = this.httpFields
+            .get(HttpHeader.CONTENT_TYPE.asString());
         return field == null ? null : field.getValue();
     }
 
@@ -330,22 +360,54 @@ public class Request implements HttpServletRequest {
 
     @Override
     public String getProtocol() {
-        return this.httpVersion.asString();
+        final HttpVersion version = this.httpVersion;
+        return version == null ? null : version.asString();
     }
 
     @Override
     public String getScheme() {
-        return this.httpUri.getScheme();
+        final HttpUri uri = this.httpUri;
+        return uri == null ? "http" : uri.getScheme();
     }
 
     @Override
     public String getServerName() {
-        return this.httpUri.getHost();
+        final HttpUri uri = this.httpUri;
+        return uri == null ? this.findServerHost() : uri.getHost();
     }
 
     @Override
     public int getServerPort() {
-        return this.httpUri.getPort();
+        final HttpUri uri = this.httpUri;
+        final int port = uri == null ? 0 : uri.getPort();
+        if (port <= 0) {
+            return this.schemeDefaultPort(this.getScheme());
+        }
+        return port;
+    }
+
+    private int schemeDefaultPort(final String scheme) {
+        switch (scheme) {
+            case "https":
+            case "wss":
+                return 443;
+            case "http":
+            case "ws":
+            default:
+                return 80;
+        }
+    }
+
+    private String findServerHost() {
+        final String name = this.getLocalName();
+        if (name != null) {
+            return name;
+        }
+        return this.getLocalAddr();
+    }
+
+    private int findServerPort() {
+        return this.getLocalPort();
     }
 
     @Override
@@ -359,8 +421,7 @@ public class Request implements HttpServletRequest {
             return "";
         }
         final InetAddress address = this.remote.getAddress();
-        final String result = address == null
-            ? this.remote.getHostString()
+        final String result = address == null ? this.remote.getHostString()
             : address.getHostAddress();
         return this.normalizeHost(result);
     }
@@ -373,12 +434,9 @@ public class Request implements HttpServletRequest {
         return this.normalizeHost(this.remote.getHostString());
     }
 
-    private String normalizeHost(String host) {
-        if (
-            host.isEmpty() ||
-            host.startsWith(IPV6_LEFT) ||
-            !host.contains(IPV6_SPLIT)
-        ) {
+    private String normalizeHost(final String host) {
+        if (host.isEmpty() || host.startsWith(IPV6_LEFT) || !host
+            .contains(IPV6_SPLIT)) {
             return host;
         }
         return IPV6_LEFT + host + IPV6_RIGHT;
@@ -392,8 +450,8 @@ public class Request implements HttpServletRequest {
 
     @Override
     public Locale getLocale() {
-        final HttpField field =
-            this.httpFields.get(HttpHeader.ACCEPT_LANGUAGE.asString());
+        final HttpField field = this.httpFields
+            .get(HttpHeader.ACCEPT_LANGUAGE.asString());
         if (field == null) {
             return Locale.getDefault();
         }
@@ -413,20 +471,15 @@ public class Request implements HttpServletRequest {
 
     @Override
     public Enumeration<Locale> getLocales() {
-        final HttpField field =
-            this.httpFields.get(HttpHeader.ACCEPT_LANGUAGE.asString());
+        final HttpField field = this.httpFields
+            .get(HttpHeader.ACCEPT_LANGUAGE.asString());
         if (field == null) {
-            return Collections.enumeration(
-                Collections.singletonList(Locale.getDefault())
-            );
+            return Collections
+                .enumeration(Collections.singletonList(Locale.getDefault()));
         }
         return Collections.enumeration(
-            field
-                .getValues()
-                .stream()
-                .map(this::parseLocal)
-                .collect(Collectors.toList())
-        );
+            field.getValues().stream().map(this::parseLocal)
+                 .collect(Collectors.toList()));
     }
 
     @Override
@@ -455,12 +508,12 @@ public class Request implements HttpServletRequest {
             return this.normalizeHost(this.local.getHostString());
         }
         try {
-            String name = InetAddress.getLocalHost().getHostName();
+            final String name = InetAddress.getLocalHost().getHostName();
             if (ALL_HOST_ADDRESS.equals(name)) {
                 return null;
             }
             return this.normalizeHost(name);
-        } catch (UnknownHostException e) {
+        } catch (final UnknownHostException e) {
             return null;
         }
     }
@@ -468,26 +521,25 @@ public class Request implements HttpServletRequest {
     @Override
     public String getLocalAddr() {
         if (this.local != null) {
-            InetAddress address = this.local.getAddress();
-            String result = address == null
-                ? this.local.getHostString()
+            final InetAddress address = this.local.getAddress();
+            final String result = address == null ? this.local.getHostString()
                 : address.getHostAddress();
             return this.normalizeHost(result);
         }
         try {
-            String name = InetAddress.getLocalHost().getHostAddress();
+            final String name = InetAddress.getLocalHost().getHostAddress();
             if (ALL_HOST_ADDRESS.equals(name)) {
                 return null;
             }
             return this.normalizeHost(name);
-        } catch (UnknownHostException e) {
+        } catch (final UnknownHostException e) {
             return null;
         }
     }
 
     @Override
     public int getLocalPort() {
-        return this.local == null ? 0 : this.local.getPort();
+        return this.local == null ? -1 : this.local.getPort();
     }
 
     @Override
@@ -501,11 +553,8 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public AsyncContext startAsync(
-        final ServletRequest servletRequest,
-        final ServletResponse servletResponse
-    )
-        throws IllegalStateException {
+    public AsyncContext startAsync(final ServletRequest servletRequest,
+        final ServletResponse servletResponse) throws IllegalStateException {
         return null;
     }
 

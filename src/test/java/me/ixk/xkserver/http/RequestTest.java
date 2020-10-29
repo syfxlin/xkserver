@@ -7,9 +7,12 @@ package me.ixk.xkserver.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import cn.hutool.core.io.IoUtil;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -17,6 +20,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -89,7 +93,7 @@ class RequestTest {
             final String name = names.nextElement();
             count++;
         }
-        assertEquals(6, count);
+        assertEquals(8, count);
     }
 
     @Test
@@ -115,6 +119,7 @@ class RequestTest {
 
     @Test
     void getQueryString() {
+        assertEquals("age=18&name=syfxlin", request.getQueryString());
     }
 
     @Test
@@ -207,26 +212,50 @@ class RequestTest {
 
     @Test
     void getCharacterEncoding() {
+        assertEquals("utf-8", request.getCharacterEncoding().toLowerCase());
     }
 
     @Test
     void setCharacterEncoding() {
+        final String resetEncoding = request.getCharacterEncoding();
+        try {
+            request.setCharacterEncoding("gbk");
+            assertEquals("gbk", request.getCharacterEncoding());
+            request.setCharacterEncoding(resetEncoding);
+        } catch (final UnsupportedEncodingException e) {
+            fail(e);
+        }
     }
 
     @Test
     void getContentLength() {
+        assertEquals(0, request.getContentLength());
     }
 
     @Test
     void getContentLengthLong() {
+        assertEquals(0L, request.getContentLengthLong());
     }
 
     @Test
     void getContentType() {
+        assertEquals("multipart/form-data; charset=utf-8; boundary=something",
+            request.getContentType());
     }
 
     @Test
     void getInputStream() {
+        final HttpChannel channel = newChannel();
+        final HttpParser parser = new HttpParser(channel);
+        parser.parse(bodyRequest());
+        final Request request = new Request(channel);
+        try {
+            assertEquals("age=18&name=syfxlin", IoUtil
+                .getReader(request.getInputStream(), StandardCharsets.UTF_8)
+                .lines().collect(Collectors.joining("\r\n")));
+        } catch (final IOException e) {
+            fail(e);
+        }
     }
 
     @Test
@@ -247,30 +276,47 @@ class RequestTest {
 
     @Test
     void getProtocol() {
+        assertEquals(HttpVersion.HTTP_1_1.asString(), request.getProtocol());
     }
 
     @Test
     void getScheme() {
+        assertEquals("http", request.getScheme());
     }
 
     @Test
     void getServerName() {
+        assertEquals("localhost", request.getServerName());
     }
 
     @Test
     void getServerPort() {
+        assertEquals(8080, request.getServerPort());
     }
 
     @Test
     void getReader() {
+        final HttpChannel channel = newChannel();
+        final HttpParser parser = new HttpParser(channel);
+        parser.parse(bodyRequest());
+        final Request request = new Request(channel);
+        try {
+            assertEquals("age=18&name=syfxlin", request.getReader().lines()
+                                                       .collect(Collectors
+                                                           .joining("\r\n")));
+        } catch (final IOException e) {
+            fail(e);
+        }
     }
 
     @Test
     void getRemoteAddr() {
+        assertEquals("", request.getRemoteAddr());
     }
 
     @Test
     void getRemoteHost() {
+        assertEquals("", request.getRemoteHost());
     }
 
     @Test
@@ -283,14 +329,19 @@ class RequestTest {
 
     @Test
     void getLocale() {
+        assertEquals(Locale.CHINA, request.getLocale());
     }
 
     @Test
     void getLocales() {
+        final Enumeration<Locale> locales = request.getLocales();
+        assertEquals(Locale.CHINA, locales.nextElement());
+        assertFalse(locales.hasMoreElements());
     }
 
     @Test
     void isSecure() {
+        assertFalse(request.isSecure());
     }
 
     @Test
@@ -303,18 +354,22 @@ class RequestTest {
 
     @Test
     void getRemotePort() {
+        assertEquals(0, request.getRemotePort());
     }
 
     @Test
     void getLocalName() {
+        assertNotNull(request.getLocalName());
     }
 
     @Test
     void getLocalAddr() {
+        assertNotNull(request.getLocalAddr());
     }
 
     @Test
     void getLocalPort() {
+        assertEquals(-1, request.getLocalPort());
     }
 
     @Test
@@ -347,11 +402,19 @@ class RequestTest {
 
     private static ByteBuffer queryRequest() {
         return ByteBuffer.wrap(("GET /welcome?age=18&name=syfxlin HTTP/1.1\r\n"
-            + "Host: localhost:8080\r\n" + "User-Agent: HTTPie/2.2.0\r\n"
+            + "Host: localhost:8080\r\n" + "Accept-Language: zh-CN\r\n"
             + "Accept-Encoding: gzip, deflate\r\n" + "Accept: */*\r\n"
             + "Connection: keep-alive\r\n"
-            + "Cookie: yummy_cookie=choco; tasty_cookie=strawberry\r\n")
-            .getBytes(StandardCharsets.ISO_8859_1));
+            + "Cookie: yummy_cookie=choco; tasty_cookie=strawberry\r\n"
+            + "Content-Type: multipart/form-data; charset=utf-8; boundary=something\r\n"
+            + "Content-Length: 0\r\n").getBytes(StandardCharsets.ISO_8859_1));
+    }
+
+    private static ByteBuffer bodyRequest() {
+        return ByteBuffer.wrap(
+            ("POST /welcome HTTP/1.1\r\n" + "Host: localhost:8080\r\n"
+                + "Content-Length: 19\r\n" + "\r\n" + "age=18&name=syfxlin\r\n")
+                .getBytes(StandardCharsets.ISO_8859_1));
     }
 
     private void assertCookies(final Request request) {
