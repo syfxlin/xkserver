@@ -40,7 +40,7 @@ public class HttpInput extends ServletInputStream {
         return this.read();
     }
 
-    public boolean hasNext() {
+    private boolean hasNext() {
         if (this.index.get() >= this.buffers.size()) {
             return false;
         }
@@ -57,12 +57,12 @@ public class HttpInput extends ServletInputStream {
 
     @Override
     public boolean isFinished() {
-        return false;
+        return !this.hasNext();
     }
 
     @Override
     public boolean isReady() {
-        return false;
+        return this.hasNext();
     }
 
     @Override

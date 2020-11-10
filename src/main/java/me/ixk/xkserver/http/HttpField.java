@@ -19,14 +19,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * @date 2020/10/27 下午 2:57
  */
 public class HttpField {
-
     private volatile int hashCache = 0;
     private final HttpHeader header;
     private final String name;
     private final List<String> values;
 
-    public HttpField(final HttpHeader header, final String name,
-        final List<String> values) {
+    public HttpField(
+        final HttpHeader header,
+        final String name,
+        final List<String> values
+    ) {
         if (header != null && name == null) {
             this.name = header.asString();
         } else if (name != null) {
@@ -90,6 +92,14 @@ public class HttpField {
         return this.equals(field);
     }
 
+    public String getParamValue() {
+        return this.getParams().getValue();
+    }
+
+    public String getParamValue(int index) {
+        return this.getParams(index).getValue();
+    }
+
     public Params getParams() {
         return this.getParams(0);
     }
@@ -105,7 +115,8 @@ public class HttpField {
         }
         final String[] values = value.substring(i + 1).split(";");
         final Map<String, String> params = new ConcurrentHashMap<>(
-            values.length);
+            values.length
+        );
         for (final String kv : values) {
             final String[] split = kv.split("=");
             params.put(split[0].trim(), split[1].trim());
@@ -170,8 +181,9 @@ public class HttpField {
             return false;
         }
         final HttpField httpField = (HttpField) o;
-        return (header == httpField.header && name
-            .equalsIgnoreCase(httpField.name));
+        return (
+            header == httpField.header && name.equalsIgnoreCase(httpField.name)
+        );
     }
 
     @Override
@@ -198,7 +210,6 @@ public class HttpField {
     }
 
     public static class Params {
-
         public static final String VALUE_NAME = "value";
 
         private final String value;

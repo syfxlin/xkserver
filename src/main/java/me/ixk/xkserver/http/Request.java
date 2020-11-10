@@ -5,6 +5,10 @@
 
 package me.ixk.xkserver.http;
 
+import cn.hutool.core.exceptions.UtilException;
+import cn.hutool.core.io.IoUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.core.util.URLUtil;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -13,6 +17,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -37,6 +42,8 @@ import javax.servlet.http.HttpSession;
 import javax.servlet.http.HttpUpgradeHandler;
 import javax.servlet.http.Part;
 import me.ixk.xkserver.http.HttpHeader.Value;
+import me.ixk.xkserver.http.MultiParts.MultiPartConfig;
+import me.ixk.xkserver.utils.MultiMap;
 
 /**
  * Request
@@ -45,7 +52,9 @@ import me.ixk.xkserver.http.HttpHeader.Value;
  * @date 2020/10/27 上午 8:15
  */
 public class Request implements HttpServletRequest {
-
+    private static final String MULTIPART_CONFIG_ANNOTATION =
+        "me.ixk.xkserver.multipartConfig";
+    private static final MultiMap<String> NO_PARAMS = new MultiMap<>();
     public static final String ALL_HOST_ADDRESS = "0.0.0.0";
     public static final String IPV6_LEFT = "[";
     public static final String IPV6_RIGHT = "]";
@@ -61,6 +70,11 @@ public class Request implements HttpServletRequest {
     private List<Cookie> cookies;
     private String characterEncoding;
 
+    private MultiMap<String> parameters;
+    private MultiMap<String> queryParameters;
+    private MultiMap<String> contentParameters;
+    private MultiParts multiParts;
+
     public Request(final HttpChannel httpChannel) {
         this.httpChannel = httpChannel;
         this.setMetaData(httpChannel);
@@ -71,10 +85,10 @@ public class Request implements HttpServletRequest {
         this.httpMethod = channel.getHttpMethod();
         this.httpVersion = channel.getHttpVersion();
         this.httpInput = channel.getHttpInput();
-        this.remote = (InetSocketAddress) channel.getSocket()
-                                                 .getRemoteSocketAddress();
-        this.local = (InetSocketAddress) channel.getSocket()
-                                                .getLocalSocketAddress();
+        this.remote =
+            (InetSocketAddress) channel.getSocket().getRemoteSocketAddress();
+        this.local =
+            (InetSocketAddress) channel.getSocket().getLocalSocketAddress();
         final HttpUri uri = channel.getHttpUri();
         if (uri.isAbsolute() && uri.hasAuthority() && uri.getPath() != null) {
             this.httpUri = uri;
@@ -87,16 +101,17 @@ public class Request implements HttpServletRequest {
                 build.setPath("/");
             }
             if (!uri.hasAuthority()) {
-                final String hostAndPort = this.httpFields
-                    .getValue(HttpHeader.HOST.asString());
+                final String hostAndPort =
+                    this.httpFields.getValue(HttpHeader.HOST.asString());
                 if (hostAndPort != null) {
                     final String[] split = hostAndPort.split(":");
                     build.setHost(split[0]);
                     if (split.length > 1) {
                         build.setPort(Integer.parseInt(split[1]));
                     } else {
-                        build
-                            .setPort(this.schemeDefaultPort(build.getScheme()));
+                        build.setPort(
+                            this.schemeDefaultPort(build.getScheme())
+                        );
                     }
                 } else {
                     build.setHost(this.findServerHost());
@@ -116,14 +131,15 @@ public class Request implements HttpServletRequest {
     public Cookie[] getCookies() {
         if (this.cookies == null) {
             this.cookies = new ArrayList<>();
-            final HttpField field = this.httpFields
-                .get(HttpHeader.COOKIE.asString());
+            final HttpField field =
+                this.httpFields.get(HttpHeader.COOKIE.asString());
             if (field != null) {
                 for (int i = 0; i < field.size(); i++) {
                     for (final String value : field.getParamValues(i)) {
                         final String[] cookie = value.split("=");
                         this.cookies.add(
-                            new Cookie(cookie[0].trim(), cookie[1].trim()));
+                                new Cookie(cookie[0].trim(), cookie[1].trim())
+                            );
                     }
                 }
             }
@@ -295,11 +311,14 @@ public class Request implements HttpServletRequest {
     @Override
     public String getCharacterEncoding() {
         if (this.characterEncoding == null) {
-            final HttpField field = this.httpFields
-                .get(HttpHeader.CONTENT_TYPE.asString());
+            final HttpField field =
+                this.httpFields.get(HttpHeader.CONTENT_TYPE.asString());
             if (field != null) {
-                this.characterEncoding = field
-                    .getParam(Value.CHARSET.asString());
+                this.characterEncoding =
+                    field.getParam(Value.CHARSET.asString());
+            }
+            if (this.characterEncoding == null) {
+                this.characterEncoding = StandardCharsets.UTF_8.name();
             }
         }
         return this.characterEncoding;
@@ -314,22 +333,22 @@ public class Request implements HttpServletRequest {
 
     @Override
     public int getContentLength() {
-        final HttpField field = this.httpFields
-            .get(HttpHeader.CONTENT_LENGTH.asString());
+        final HttpField field =
+            this.httpFields.get(HttpHeader.CONTENT_LENGTH.asString());
         return field == null ? -1 : Integer.parseInt(field.getValue());
     }
 
     @Override
     public long getContentLengthLong() {
-        final HttpField field = this.httpFields
-            .get(HttpHeader.CONTENT_LENGTH.asString());
+        final HttpField field =
+            this.httpFields.get(HttpHeader.CONTENT_LENGTH.asString());
         return field == null ? -1 : Long.parseLong(field.getValue());
     }
 
     @Override
     public String getContentType() {
-        final HttpField field = this.httpFields
-            .get(HttpHeader.CONTENT_TYPE.asString());
+        final HttpField field =
+            this.httpFields.get(HttpHeader.CONTENT_TYPE.asString());
         return field == null ? null : field.getValue();
     }
 
@@ -340,22 +359,23 @@ public class Request implements HttpServletRequest {
 
     @Override
     public String getParameter(final String name) {
-        return null;
+        return this.getParameters().getValue(name, 0);
     }
 
     @Override
     public Enumeration<String> getParameterNames() {
-        return null;
+        return Collections.enumeration(this.getParameters().keySet());
     }
 
     @Override
     public String[] getParameterValues(final String name) {
-        return new String[0];
+        final List<String> values = this.getParameters().getValues(name);
+        return values == null ? null : values.toArray(String[]::new);
     }
 
     @Override
     public Map<String, String[]> getParameterMap() {
-        return null;
+        return this.getParameters().toStringArrayMap();
     }
 
     @Override
@@ -421,7 +441,8 @@ public class Request implements HttpServletRequest {
             return "";
         }
         final InetAddress address = this.remote.getAddress();
-        final String result = address == null ? this.remote.getHostString()
+        final String result = address == null
+            ? this.remote.getHostString()
             : address.getHostAddress();
         return this.normalizeHost(result);
     }
@@ -435,8 +456,11 @@ public class Request implements HttpServletRequest {
     }
 
     private String normalizeHost(final String host) {
-        if (host.isEmpty() || host.startsWith(IPV6_LEFT) || !host
-            .contains(IPV6_SPLIT)) {
+        if (
+            host.isEmpty() ||
+            host.startsWith(IPV6_LEFT) ||
+            !host.contains(IPV6_SPLIT)
+        ) {
             return host;
         }
         return IPV6_LEFT + host + IPV6_RIGHT;
@@ -450,8 +474,8 @@ public class Request implements HttpServletRequest {
 
     @Override
     public Locale getLocale() {
-        final HttpField field = this.httpFields
-            .get(HttpHeader.ACCEPT_LANGUAGE.asString());
+        final HttpField field =
+            this.httpFields.get(HttpHeader.ACCEPT_LANGUAGE.asString());
         if (field == null) {
             return Locale.getDefault();
         }
@@ -471,15 +495,20 @@ public class Request implements HttpServletRequest {
 
     @Override
     public Enumeration<Locale> getLocales() {
-        final HttpField field = this.httpFields
-            .get(HttpHeader.ACCEPT_LANGUAGE.asString());
+        final HttpField field =
+            this.httpFields.get(HttpHeader.ACCEPT_LANGUAGE.asString());
         if (field == null) {
-            return Collections
-                .enumeration(Collections.singletonList(Locale.getDefault()));
+            return Collections.enumeration(
+                Collections.singletonList(Locale.getDefault())
+            );
         }
         return Collections.enumeration(
-            field.getValues().stream().map(this::parseLocal)
-                 .collect(Collectors.toList()));
+            field
+                .getValues()
+                .stream()
+                .map(this::parseLocal)
+                .collect(Collectors.toList())
+        );
     }
 
     @Override
@@ -522,7 +551,8 @@ public class Request implements HttpServletRequest {
     public String getLocalAddr() {
         if (this.local != null) {
             final InetAddress address = this.local.getAddress();
-            final String result = address == null ? this.local.getHostString()
+            final String result = address == null
+                ? this.local.getHostString()
                 : address.getHostAddress();
             return this.normalizeHost(result);
         }
@@ -553,8 +583,11 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public AsyncContext startAsync(final ServletRequest servletRequest,
-        final ServletResponse servletResponse) throws IllegalStateException {
+    public AsyncContext startAsync(
+        final ServletRequest servletRequest,
+        final ServletResponse servletResponse
+    )
+        throws IllegalStateException {
         return null;
     }
 
@@ -576,5 +609,139 @@ public class Request implements HttpServletRequest {
     @Override
     public DispatcherType getDispatcherType() {
         return null;
+    }
+
+    private MultiMap<String> decodeParameters(String paramsString) {
+        if (paramsString == null) {
+            return null;
+        }
+        MultiMap<String> params = new MultiMap<>();
+        for (final String param : paramsString.split("&")) {
+            final String[] kv = param.split("=");
+            params.add(
+                URLUtil.decode(kv[0].trim(), this.getCharacterEncoding()),
+                kv.length == 1
+                    ? ""
+                    : URLUtil.decode(kv[1].trim(), this.getCharacterEncoding())
+            );
+        }
+        return params;
+    }
+
+    private void extractQueryParameters() {
+        if (this.httpUri == null || StrUtil.isEmpty(this.httpUri.getQuery())) {
+            this.queryParameters = NO_PARAMS;
+        } else {
+            try {
+                this.queryParameters =
+                    this.decodeParameters(this.getQueryString());
+            } catch (final UtilException e) {
+                throw new BadMessageException("Unable to parse URI query", e);
+            }
+        }
+    }
+
+    private void extractContentParameters() {
+        final String contentType = this.getContentType();
+        final int contentLength = this.getContentLength();
+        if (StrUtil.isEmpty(contentType) || contentLength == 0) {
+            this.contentParameters = NO_PARAMS;
+        } else {
+            final HttpField field =
+                this.httpFields.get(HttpHeader.CONTENT_TYPE.asString());
+            final String baseType = field.getParamValue();
+            if (
+                MimeType.FORM_ENCODED.is(baseType) && this.isFormEncodedMethod()
+            ) {
+                if (!this.isContentEncodingSupported()) {
+                    throw new BadMessageException(
+                        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                        "Unsupported Content-Encoding"
+                    );
+                }
+                this.extractFormParameters();
+            } else if (
+                MimeType.MULTIPART_FORM_DATA.is(baseType) &&
+                this.isFormEncodedMethod() &&
+                this.getParameter(MULTIPART_CONFIG_ANNOTATION) != null
+            ) {
+                if (!this.isContentEncodingSupported()) {
+                    throw new BadMessageException(
+                        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                        "Unsupported Content-Encoding"
+                    );
+                }
+                this.extractParts();
+            }
+        }
+    }
+
+    private void extractFormParameters() {
+        try {
+            this.contentParameters =
+                this.decodeParameters(
+                        IoUtil.read(
+                            this.getInputStream(),
+                            this.getCharacterEncoding()
+                        )
+                    );
+        } catch (UtilException | IOException e) {
+            throw new BadMessageException("Unable to parse Form parameters", e);
+        }
+    }
+
+    private boolean isFormEncodedMethod() {
+        switch (this.httpMethod) {
+            case POST:
+            case PUT:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean isContentEncodingSupported() {
+        final HttpField contentEncoding =
+            this.httpFields.get(HttpHeader.CONTENT_ENCODING.asString());
+        if (contentEncoding == null) {
+            return true;
+        }
+        return HttpHeader.Value.IDENTITY.is(contentEncoding.getValue());
+    }
+
+    private void extractParts() {
+        this.multiParts =
+            new MultiParts(
+                (MultiPartConfig) this.getAttribute(
+                        MULTIPART_CONFIG_ANNOTATION
+                    ),
+                this.getContentType()
+            );
+    }
+
+    private MultiMap<String> getParameters() {
+        if (this.parameters != null) {
+            return this.parameters;
+        }
+        if (this.queryParameters == null) {
+            this.extractQueryParameters();
+        }
+        if (this.contentParameters == null) {
+            this.extractContentParameters();
+        }
+        if (this.isEmptyParameters(this.queryParameters)) {
+            this.parameters = this.contentParameters;
+        } else if (this.isEmptyParameters(this.contentParameters)) {
+            this.parameters = this.queryParameters;
+        } else {
+            this.parameters = new MultiMap<>();
+            this.parameters.addAllValues(this.queryParameters);
+            this.parameters.addAllValues(this.contentParameters);
+        }
+        return this.parameters;
+    }
+
+    private boolean isEmptyParameters(MultiMap<String> parameters) {
+        return parameters == null || parameters.isEmpty();
     }
 }
