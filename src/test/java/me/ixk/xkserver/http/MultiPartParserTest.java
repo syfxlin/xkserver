@@ -147,6 +147,7 @@ class MultiPartParserTest {
                 .append(IoUtil.read(entry.getValue().get(0).getInputStream()))
                 .append("\n");
         }
+        System.out.println(builder);
         this.assertParts(builder);
     }
 }

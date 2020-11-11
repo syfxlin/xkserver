@@ -379,8 +379,8 @@ public class MultiPartParser {
                         this.delimiterSearch.length() -
                         this.partialBoundary
                     );
-                    this.partialBoundary = this.delimiterSearch.length();
-                    this.state = State.DELIMITER;
+                    this.partialBoundary = 0;
+                    this.state = State.DELIMITER_PADDING;
                     this.handler.addContent(ByteBuffer.allocate(0));
                     this.handler.endPart();
                     return;
@@ -415,8 +415,8 @@ public class MultiPartParser {
             buffer.position(
                 match - buffer.arrayOffset() + this.delimiterSearch.length()
             );
-            this.partialBoundary = this.delimiterSearch.length();
-            this.state = State.DELIMITER;
+            this.partialBoundary = 0;
+            this.state = State.DELIMITER_PADDING;
             this.handler.addContent(content);
             this.handler.endPart();
             return;
