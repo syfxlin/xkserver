@@ -51,7 +51,7 @@ public class HttpParser {
         /**
          * 头字段
          */
-        START_HEADER,
+        HEADER,
         /**
          * 头字段名称
          */
@@ -67,7 +67,7 @@ public class HttpParser {
         /**
          * 内容
          */
-        START_CONTENT,
+        CONTENT,
         /**
          * 空内容
          */
@@ -121,11 +121,14 @@ public class HttpParser {
 
     private boolean eof = false;
 
-    public HttpParser(RequestHandler handler) {
+    public HttpParser(final RequestHandler handler) {
         this(handler, -1);
     }
 
-    public HttpParser(RequestHandler handler, final int maxHeaderByteLength) {
+    public HttpParser(
+        final RequestHandler handler,
+        final int maxHeaderByteLength
+    ) {
         this.handler = handler;
         this.trailers = new HashSet<>();
         this.maxHeaderByteLength = maxHeaderByteLength;
@@ -155,9 +158,9 @@ public class HttpParser {
                 this.handler.requestComplete();
                 this.state = State.END;
             }
-        } catch (BadMessageException e) {
+        } catch (final BadMessageException e) {
             this.handler.failure(e);
-        } catch (Throwable e) {
+        } catch (final Throwable e) {
             this.handler.failure(
                     new BadMessageException(HttpStatus.BAD_REQUEST, e)
                 );
@@ -166,7 +169,7 @@ public class HttpParser {
 
     private void parseLine(final ByteBuffer buffer) {
         if (
-            this.state.ordinal() >= State.START_HEADER.ordinal() ||
+            this.state.ordinal() >= State.HEADER.ordinal() ||
             !buffer.hasRemaining()
         ) {
             return;
@@ -199,7 +202,7 @@ public class HttpParser {
                             break;
                         // 空格切换到 SPACE1 状态
                         case SPACE:
-                            HttpMethod method = HttpMethod.from(
+                            final HttpMethod method = HttpMethod.from(
                                 this.string.toString()
                             );
                             if (method == null) {
@@ -281,7 +284,7 @@ public class HttpParser {
                             break;
                         // 遇到换行说明请求行结束，此时验证 HTTP 版本字段是否符合规范，如果是，则结束请求行的解析，同时切换到解析头字段的状态
                         case LF:
-                            HttpVersion version = HttpVersion.from(
+                            final HttpVersion version = HttpVersion.from(
                                 this.string.toString()
                             );
                             if (version == null) {
@@ -293,7 +296,7 @@ public class HttpParser {
                             this.handler.setHttpVersion(version);
                             this.string.setLength(0);
                             this.length = 0;
-                            this.state = State.START_HEADER;
+                            this.state = State.HEADER;
                             return;
                         default:
                             throw new IllegalCharacterException(token);
@@ -310,7 +313,7 @@ public class HttpParser {
             return;
         }
         if (
-            this.state.ordinal() >= State.START_CONTENT.ordinal() &&
+            this.state.ordinal() >= State.CONTENT.ordinal() &&
             this.state != State.TRAILER
         ) {
             return;
@@ -324,7 +327,7 @@ public class HttpParser {
             this.addLength(
                     l -> {
                         throw new BadMessageException(
-                            state == State.START_HEADER
+                            state == State.HEADER
                                 ? HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE
                                 : HttpStatus.PAYLOAD_TOO_LARGE
                         );
@@ -335,7 +338,7 @@ public class HttpParser {
             final char ch = token.getChar();
 
             switch (this.state) {
-                case START_HEADER:
+                case HEADER:
                 case TRAILER:
                     // HEADER 状态的下一个状态一定是 HEADER_NAME，头字段的名称首字符一定为字母
                     switch (type) {
@@ -351,7 +354,7 @@ public class HttpParser {
                             } else {
                                 this.handler.trailerComplete();
                             }
-                            this.state = State.START_CONTENT;
+                            this.state = State.CONTENT;
                             return;
                         default:
                             throw new IllegalCharacterException(token);
@@ -436,7 +439,7 @@ public class HttpParser {
             return;
         }
 
-        if (this.state == State.START_CONTENT) {
+        if (this.state == State.CONTENT) {
             // 首次解析内容的时候按规则分配
             if (this.contentLength > 0) {
                 this.state = State.FIXED_CONTENT;
@@ -455,9 +458,7 @@ public class HttpParser {
             switch (this.state) {
                 // 空内容
                 case EMPTY_CONTENT:
-                    this.handler.addContent(
-                            ByteBuffer.allocate(0).asReadOnlyBuffer()
-                        );
+                    this.handler.addContent(ByteBuffer.allocate(0));
                     this.state = State.END_CONTENT;
                     return;
                 // 定长内容
@@ -466,7 +467,7 @@ public class HttpParser {
                         this.state = State.END_CONTENT;
                         return;
                     }
-                    final ByteBuffer content = buffer.asReadOnlyBuffer();
+                    final ByteBuffer content = buffer.duplicate();
                     if (buffer.remaining() > this.contentLength) {
                         content.limit(content.position() + this.contentLength);
                     }
@@ -524,7 +525,7 @@ public class HttpParser {
                         // 当分块内容读取完毕时切换到分块的初始状态，进行下一轮分块读取
                         this.state = State.CHUNKED_CONTENT;
                     } else {
-                        final ByteBuffer chunk = buffer.asReadOnlyBuffer();
+                        final ByteBuffer chunk = buffer.duplicate();
                         if (buffer.remaining() > this.chunkLength) {
                             chunk.limit(chunk.position() + this.chunkLength);
                         }
@@ -624,7 +625,7 @@ public class HttpParser {
             (this.trailers.isEmpty() && this.state == State.END_CONTENT) ||
             this.state == State.TRAILER
         ) {
-            final ByteBuffer copy = buffer.asReadOnlyBuffer();
+            final ByteBuffer copy = buffer.duplicate();
             while (buffer.hasRemaining()) {
                 final HttpTokens.Token next = this.next(copy);
                 if (next != null && next.getType() == Type.LF) {
@@ -636,7 +637,7 @@ public class HttpParser {
         }
     }
 
-    private void addLength(Consumer<Integer> consumer) {
+    private void addLength(final Consumer<Integer> consumer) {
         this.length++;
         if (
             this.maxHeaderByteLength > 0 &&
@@ -753,7 +754,7 @@ public class HttpParser {
          *
          * @param e 错误
          */
-        default void failure(BadMessageException e) {
+        default void failure(final BadMessageException e) {
             throw e;
         }
 

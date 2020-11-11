@@ -43,6 +43,7 @@ public enum HttpHeader {
     CONTENT_TYPE("Content-Type"),
     EXPIRES("Expires"),
     LAST_MODIFIED("Last-Modified"),
+    CONTENT_DISPOSITION("Content-Disposition"),
 
     /**
      * Request Fields.
@@ -224,7 +225,7 @@ public enum HttpHeader {
         public static final Map<String, Value> CACHE = new HashMap<>();
 
         static {
-            for (Value value : Value.values()) {
+            for (final Value value : Value.values()) {
                 if (value != UNKNOWN) {
                     CACHE.put(value.toString(), value);
                 }
@@ -233,11 +234,11 @@ public enum HttpHeader {
 
         private final String value;
 
-        Value(String value) {
+        Value(final String value) {
             this.value = value;
         }
 
-        public boolean is(String s) {
+        public boolean is(final String s) {
             return value.equalsIgnoreCase(s);
         }
 
