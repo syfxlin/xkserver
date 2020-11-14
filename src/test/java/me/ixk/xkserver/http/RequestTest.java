@@ -9,9 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import cn.hutool.core.io.IoUtil;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
@@ -43,6 +45,7 @@ class RequestTest {
     private static Request queryRequest;
     private static Request bodyRequest;
     private static Request multiRequest;
+    private static Request jsonRequest;
 
     @BeforeAll
     static void beforeAll() {
@@ -68,6 +71,11 @@ class RequestTest {
         final HttpParser p3 = new HttpParser(c3);
         p3.parse(multiPartRequest());
         multiRequest = new Request(c3);
+
+        final HttpChannel c4 = newChannel();
+        final HttpParser p4 = new HttpParser(c4);
+        p4.parse(jsonRequest());
+        jsonRequest = new Request(c4);
     }
 
     @Test
@@ -208,6 +216,7 @@ class RequestTest {
             "{\n" + "  \"id\": 999,\n" + "  \"value\": \"content\"\n" + "}",
             IoUtil.read(data.getInputStream(), StandardCharsets.ISO_8859_1)
         );
+        assertEquals("Name", multiRequest.getParameter("element-name"));
     }
 
     @Test
@@ -422,6 +431,14 @@ class RequestTest {
     @Test
     void getDispatcherType() {}
 
+    @Test
+    void getParseBody() {
+        final JsonNode parseBody = jsonRequest.getParseBody();
+        assertNotNull(parseBody);
+        assertTrue(parseBody.isObject());
+        assertEquals("value", parseBody.get("key").asText());
+    }
+
     private static ByteBuffer queryRequest() {
         return ByteBuffer.wrap(
             (
@@ -478,6 +495,24 @@ class RequestTest {
                 "  \"value\": \"content\"\n" +
                 "}\r\n" +
                 "--WebAppBoundary--"
+            ).getBytes(StandardCharsets.ISO_8859_1)
+        );
+    }
+
+    private static ByteBuffer jsonRequest() {
+        return ByteBuffer.wrap(
+            (
+                "POST /method HTTP/1.1\r\n" +
+                "Content-Type: application/json\r\n" +
+                "Content-Length: 20\r\n" +
+                "Host: localhost:8080\r\n" +
+                "Connection: Keep-Alive\r\n" +
+                "User-Agent: Apache-HttpClient/4.5.12 (Java/11.0.8)\r\n" +
+                "Accept-Encoding: gzip,deflate\r\n" +
+                "\r\n" +
+                "{\n" +
+                "  \"key\": \"value\"\n" +
+                "}"
             ).getBytes(StandardCharsets.ISO_8859_1)
         );
     }

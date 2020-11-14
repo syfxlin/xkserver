@@ -11,7 +11,9 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.URLUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
@@ -312,7 +314,7 @@ public class Request implements HttpServletRequest {
     @Override
     public Collection<Part> getParts() throws IOException, ServletException {
         if (this.multiParts == null) {
-            this.extractParts();
+            this.extractContentParameters();
         }
         return this.multiParts.getCollection();
     }
@@ -321,7 +323,7 @@ public class Request implements HttpServletRequest {
     public Part getPart(final String name)
         throws IOException, ServletException {
         if (this.multiParts == null) {
-            this.extractParts();
+            this.extractContentParameters();
         }
         return this.multiParts.getPart(name);
     }
@@ -335,6 +337,10 @@ public class Request implements HttpServletRequest {
 
     @Override
     public Object getAttribute(final String name) {
+        // TODO: 测试使用
+        if (MULTIPART_CONFIG_ANNOTATION.equals(name)) {
+            return new MultiPartConfig(null, -1, -1, 0);
+        }
         // TODO: 未完成
         return null;
     }
@@ -661,6 +667,17 @@ public class Request implements HttpServletRequest {
         return null;
     }
 
+    public HttpChannel getHttpChannel() {
+        return httpChannel;
+    }
+
+    public JsonNode getParseBody() {
+        if (parseBody == null) {
+            this.extractContentParameters();
+        }
+        return parseBody;
+    }
+
     private MultiMap<String> decodeParameters(final String paramsString) {
         if (paramsString == null) {
             return null;
@@ -713,7 +730,7 @@ public class Request implements HttpServletRequest {
             } else if (
                 MimeType.MULTIPART_FORM_DATA.is(baseType) &&
                 this.isFormEncodedMethod() &&
-                this.getParameter(MULTIPART_CONFIG_ANNOTATION) != null
+                this.getAttribute(MULTIPART_CONFIG_ANNOTATION) != null
             ) {
                 if (!this.isContentEncodingSupported()) {
                     throw new BadMessageException(
@@ -795,6 +812,45 @@ public class Request implements HttpServletRequest {
         );
         while (!this.httpInput.isFinished()) {
             parser.parse(this.httpInput.readByteBuffer());
+        }
+        ByteArrayOutputStream os = null;
+        for (Part part : this.multiParts.getCollection()) {
+            if (part.getSubmittedFileName() == null) {
+                String charset = null;
+                if (part.getContentType() != null) {
+                    HttpField contentType = new HttpField(
+                        HttpHeader.CONTENT_TYPE,
+                        Collections.singletonList(this.getContentType())
+                    );
+                    charset = contentType.getParam("charset");
+                }
+
+                try (InputStream is = part.getInputStream()) {
+                    if (os == null) {
+                        os = new ByteArrayOutputStream();
+                    }
+                    IoUtil.copy(is, os);
+
+                    String content = new String(
+                        os.toByteArray(),
+                        Charset.forName(
+                            charset == null
+                                ? this.getCharacterEncoding()
+                                : charset
+                        )
+                    );
+                    if (this.contentParameters == null) {
+                        this.contentParameters = new MultiMap<>();
+                    }
+                    this.contentParameters.add(part.getName(), content);
+                } catch (IOException e) {
+                    throw new BadMessageException(
+                        "Unable to parse multi parts",
+                        e
+                    );
+                }
+                os.reset();
+            }
         }
     }
 
