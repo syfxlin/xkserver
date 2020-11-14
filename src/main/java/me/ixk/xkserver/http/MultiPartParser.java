@@ -555,11 +555,6 @@ public class MultiPartParser {
         default void headerComplete() {}
 
         /**
-         * 内容解析完成
-         */
-        default void contentComplete() {}
-
-        /**
          * Part 解析完成
          */
         default void partComplete() {}

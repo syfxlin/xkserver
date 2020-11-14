@@ -25,7 +25,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
+import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
+import javax.servlet.http.Part;
 import me.ixk.xkserver.conntecor.Acceptor;
 import me.ixk.xkserver.conntecor.Connector;
 import me.ixk.xkserver.conntecor.PollerManager;
@@ -40,6 +42,7 @@ import org.junit.jupiter.api.Test;
 class RequestTest {
     private static Request queryRequest;
     private static Request bodyRequest;
+    private static Request multiRequest;
 
     @BeforeAll
     static void beforeAll() {
@@ -60,6 +63,11 @@ class RequestTest {
         final HttpParser p2 = new HttpParser(c2);
         p2.parse(bodyRequest());
         bodyRequest = new Request(c2);
+
+        final HttpChannel c3 = newChannel();
+        final HttpParser p3 = new HttpParser(c3);
+        p3.parse(multiPartRequest());
+        multiRequest = new Request(c3);
     }
 
     @Test
@@ -179,10 +187,28 @@ class RequestTest {
     void logout() {}
 
     @Test
-    void getParts() {}
+    void getParts() throws IOException, ServletException {
+        assertEquals(2, multiRequest.getParts().size());
+    }
 
     @Test
-    void getPart() {}
+    void getPart() throws IOException, ServletException {
+        final Part elementName = multiRequest.getPart("element-name");
+        assertNotNull(elementName);
+        assertEquals(
+            "Name",
+            IoUtil.read(
+                elementName.getInputStream(),
+                StandardCharsets.ISO_8859_1
+            )
+        );
+        final Part data = multiRequest.getPart("data");
+        assertNotNull(data);
+        assertEquals(
+            "{\n" + "  \"id\": 999,\n" + "  \"value\": \"content\"\n" + "}",
+            IoUtil.read(data.getInputStream(), StandardCharsets.ISO_8859_1)
+        );
+    }
 
     @Test
     void upgrade() {}
@@ -421,6 +447,37 @@ class RequestTest {
                 "Content-Type: application/x-www-form-urlencoded\r\n" +
                 "\r\n" +
                 "age=18&name=syfxlin\r\n"
+            ).getBytes(StandardCharsets.ISO_8859_1)
+        );
+    }
+
+    private static ByteBuffer multiPartRequest() {
+        return ByteBuffer.wrap(
+            (
+                "POST / HTTP/1.1\r\n" +
+                "Content-Type: multipart/form-data; boundary=WebAppBoundary\r\n" +
+                "Content-Length: 351\r\n" +
+                "Host: localhost:8080\r\n" +
+                "Connection: Keep-Alive\r\n" +
+                "User-Agent: Apache-HttpClient/4.5.12 (Java/11.0.8)\r\n" +
+                "Accept-Encoding: gzip,deflate\r\n" +
+                "\r\n" +
+                "--WebAppBoundary\r\n" +
+                "Content-Disposition: form-data; name=\"element-name\"\r\n" +
+                "Content-Type: text/plain\r\n" +
+                "Content-Transfer-Encoding: 8bit\r\n" +
+                "\r\n" +
+                "Name\r\n" +
+                "--WebAppBoundary\r\n" +
+                "Content-Disposition: form-data; name=\"data\"; filename=\"data.json\"\r\n" +
+                "Content-Type: application/json\r\n" +
+                "Content-Transfer-Encoding: binary\r\n" +
+                "\r\n" +
+                "{\n" +
+                "  \"id\": 999,\n" +
+                "  \"value\": \"content\"\n" +
+                "}\r\n" +
+                "--WebAppBoundary--"
             ).getBytes(StandardCharsets.ISO_8859_1)
         );
     }

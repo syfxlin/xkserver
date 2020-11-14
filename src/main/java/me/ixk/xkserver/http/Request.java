@@ -9,6 +9,7 @@ import cn.hutool.core.exceptions.UtilException;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.URLUtil;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -43,6 +44,7 @@ import javax.servlet.http.HttpUpgradeHandler;
 import javax.servlet.http.Part;
 import me.ixk.xkserver.http.HttpHeader.Value;
 import me.ixk.xkserver.http.MultiParts.MultiPartConfig;
+import me.ixk.xkserver.utils.Json;
 import me.ixk.xkserver.utils.MultiMap;
 
 /**
@@ -74,6 +76,7 @@ public class Request implements HttpServletRequest {
     private MultiMap<String> queryParameters;
     private MultiMap<String> contentParameters;
     private MultiParts multiParts;
+    private JsonNode parseBody;
 
     public Request(final HttpChannel httpChannel) {
         this.httpChannel = httpChannel;
@@ -124,6 +127,7 @@ public class Request implements HttpServletRequest {
 
     @Override
     public String getAuthType() {
+        // TODO: 未完成
         return null;
     }
 
@@ -149,6 +153,7 @@ public class Request implements HttpServletRequest {
 
     @Override
     public long getDateHeader(final String name) {
+        // TODO: 未完成
         return 0;
     }
 
@@ -169,6 +174,7 @@ public class Request implements HttpServletRequest {
 
     @Override
     public int getIntHeader(final String name) {
+        // TODO: 未完成
         return 0;
     }
 
@@ -179,16 +185,19 @@ public class Request implements HttpServletRequest {
 
     @Override
     public String getPathInfo() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public String getPathTranslated() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public String getContextPath() {
+        // TODO: 未完成
         return null;
     }
 
@@ -200,111 +209,139 @@ public class Request implements HttpServletRequest {
 
     @Override
     public String getRemoteUser() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public boolean isUserInRole(final String name) {
+        // TODO: 未完成
         return false;
     }
 
     @Override
     public Principal getUserPrincipal() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public String getRequestedSessionId() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public String getRequestURI() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public StringBuffer getRequestURL() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public String getServletPath() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public HttpSession getSession(final boolean b) {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public HttpSession getSession() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public String changeSessionId() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public boolean isRequestedSessionIdValid() {
+        // TODO: 未完成
         return false;
     }
 
     @Override
     public boolean isRequestedSessionIdFromCookie() {
+        // TODO: 未完成
         return false;
     }
 
     @Override
     public boolean isRequestedSessionIdFromURL() {
+        // TODO: 未完成
         return false;
     }
 
     @Override
     public boolean isRequestedSessionIdFromUrl() {
+        // TODO: 未完成
         return false;
     }
 
     @Override
     public boolean authenticate(final HttpServletResponse httpServletResponse)
         throws IOException, ServletException {
+        // TODO: 未完成
         return false;
     }
 
     @Override
     public void login(final String name, final String name1)
-        throws ServletException {}
+        throws ServletException {
+        // TODO: 未完成
+    }
 
     @Override
-    public void logout() throws ServletException {}
+    public void logout() throws ServletException {
+        // TODO: 未完成
+    }
 
     @Override
     public Collection<Part> getParts() throws IOException, ServletException {
-        return null;
+        if (this.multiParts == null) {
+            this.extractParts();
+        }
+        return this.multiParts.getCollection();
     }
 
     @Override
     public Part getPart(final String name)
         throws IOException, ServletException {
-        return null;
+        if (this.multiParts == null) {
+            this.extractParts();
+        }
+        return this.multiParts.getPart(name);
     }
 
     @Override
     public <T extends HttpUpgradeHandler> T upgrade(final Class<T> aClass)
         throws IOException, ServletException {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public Object getAttribute(final String name) {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public Enumeration<String> getAttributeNames() {
+        // TODO: 未完成
         return null;
     }
 
@@ -467,10 +504,14 @@ public class Request implements HttpServletRequest {
     }
 
     @Override
-    public void setAttribute(final String name, final Object o) {}
+    public void setAttribute(final String name, final Object o) {
+        // TODO: 未完成
+    }
 
     @Override
-    public void removeAttribute(final String name) {}
+    public void removeAttribute(final String name) {
+        // TODO: 未完成
+    }
 
     @Override
     public Locale getLocale() {
@@ -518,11 +559,13 @@ public class Request implements HttpServletRequest {
 
     @Override
     public RequestDispatcher getRequestDispatcher(final String name) {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public String getRealPath(final String name) {
+        // TODO: 未完成
         return null;
     }
 
@@ -574,11 +617,13 @@ public class Request implements HttpServletRequest {
 
     @Override
     public ServletContext getServletContext() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public AsyncContext startAsync() throws IllegalStateException {
+        // TODO: 未完成
         return null;
     }
 
@@ -588,34 +633,39 @@ public class Request implements HttpServletRequest {
         final ServletResponse servletResponse
     )
         throws IllegalStateException {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public boolean isAsyncStarted() {
+        // TODO: 未完成
         return false;
     }
 
     @Override
     public boolean isAsyncSupported() {
+        // TODO: 未完成
         return false;
     }
 
     @Override
     public AsyncContext getAsyncContext() {
+        // TODO: 未完成
         return null;
     }
 
     @Override
     public DispatcherType getDispatcherType() {
+        // TODO: 未完成
         return null;
     }
 
-    private MultiMap<String> decodeParameters(String paramsString) {
+    private MultiMap<String> decodeParameters(final String paramsString) {
         if (paramsString == null) {
             return null;
         }
-        MultiMap<String> params = new MultiMap<>();
+        final MultiMap<String> params = new MultiMap<>();
         for (final String param : paramsString.split("&")) {
             final String[] kv = param.split("=");
             params.add(
@@ -672,6 +722,20 @@ public class Request implements HttpServletRequest {
                     );
                 }
                 this.extractParts();
+            } else if (
+                (
+                    MimeType.TEXT_JSON.is(baseType) ||
+                    MimeType.APPLICATION_JSON.is(baseType)
+                ) &&
+                this.isFormEncodedMethod()
+            ) {
+                if (!this.isContentEncodingSupported()) {
+                    throw new BadMessageException(
+                        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                        "Unsupported Content-Encoding"
+                    );
+                }
+                this.extractJson();
             }
         }
     }
@@ -685,7 +749,7 @@ public class Request implements HttpServletRequest {
                             this.getCharacterEncoding()
                         )
                     );
-        } catch (UtilException | IOException e) {
+        } catch (final UtilException | IOException e) {
             throw new BadMessageException("Unable to parse Form parameters", e);
         }
     }
@@ -717,6 +781,35 @@ public class Request implements HttpServletRequest {
                     ),
                 this.getContentType()
             );
+        final HttpField field =
+            this.httpFields.get(HttpHeader.CONTENT_TYPE.asString());
+        final String boundary = field.getParam("boundary");
+        if (boundary == null) {
+            throw new BadMessageException(
+                "Content-Type did not find boundary attribute"
+            );
+        }
+        final MultiPartParser parser = new MultiPartParser(
+            this.multiParts,
+            boundary
+        );
+        while (!this.httpInput.isFinished()) {
+            parser.parse(this.httpInput.readByteBuffer());
+        }
+    }
+
+    private void extractJson() {
+        try {
+            this.parseBody =
+                Json.parse(
+                    IoUtil.read(
+                        this.getInputStream(),
+                        this.getCharacterEncoding()
+                    )
+                );
+        } catch (final IOException e) {
+            throw new BadMessageException("Unable to parse Json body", e);
+        }
     }
 
     private MultiMap<String> getParameters() {
@@ -741,7 +834,7 @@ public class Request implements HttpServletRequest {
         return this.parameters;
     }
 
-    private boolean isEmptyParameters(MultiMap<String> parameters) {
+    private boolean isEmptyParameters(final MultiMap<String> parameters) {
         return parameters == null || parameters.isEmpty();
     }
 }

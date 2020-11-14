@@ -17,8 +17,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.http.Part;
+import me.ixk.xkserver.http.MultiPartParser.PartHandler;
 import me.ixk.xkserver.utils.MultiMap;
 import me.ixk.xkserver.utils.ResourceUtils;
 
@@ -26,17 +29,25 @@ import me.ixk.xkserver.utils.ResourceUtils;
  * @author Otstar Lin
  * @date 2020/11/10 下午 1:30
  */
-public class MultiParts {
+public class MultiParts implements PartHandler {
+    private static final MultiPartConfig DEFAULT_CONFIG = new MultiPartConfig(
+        null,
+        -1,
+        -1,
+        0
+    );
     private final MultiMap<Part> parts = new MultiMap<>();
     private final MultiPartConfig multipartConfig;
     private final File tmpDir;
     private final String contentType;
+    private volatile MultiPart part;
 
     public MultiParts(
         final MultiPartConfig multipartConfig,
         final String contentType
     ) {
-        this.multipartConfig = multipartConfig;
+        this.multipartConfig =
+            multipartConfig == null ? DEFAULT_CONFIG : multipartConfig;
         this.contentType = contentType;
         if (
             contentType == null ||
@@ -49,9 +60,9 @@ public class MultiParts {
         try {
             this.tmpDir =
                 ResourceUtils.getFile(
-                    multipartConfig.getLocation() == null
+                    this.multipartConfig.getLocation() == null
                         ? System.getProperty("java.io.tmpdir")
-                        : multipartConfig.getLocation()
+                        : this.multipartConfig.getLocation()
                 );
         } catch (final FileNotFoundException e) {
             throw new RuntimeException(e);
@@ -66,6 +77,22 @@ public class MultiParts {
         return parts;
     }
 
+    public Collection<Part> getCollection() {
+        return parts
+            .values()
+            .stream()
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+    }
+
+    public Part getPart(String name) {
+        return parts.getValue(name, 0);
+    }
+
+    public List<Part> getParts(String name) {
+        return parts.getValues(name);
+    }
+
     public MultiPartConfig getMultiPartConfig() {
         return multipartConfig;
     }
@@ -76,6 +103,38 @@ public class MultiParts {
 
     public void addPart(final Part part) {
         this.parts.add(part.getName(), part);
+    }
+
+    @Override
+    public void startPart() {
+        this.part = new MultiPart();
+        this.part.setHeaders(new HttpFields());
+    }
+
+    @Override
+    public void addHttpHeader(HttpField field) {
+        this.part.getHeaders().put(field.getName(), field);
+    }
+
+    @Override
+    public void addContent(ByteBuffer buffer) {
+        try {
+            this.part.write(buffer);
+        } catch (final IOException e) {
+            throw new BadMessageException("Unable to parse multipart body", e);
+        }
+    }
+
+    @Override
+    public void endPart() {
+        this.part.readName();
+        this.addPart(this.part);
+        this.part = null;
+    }
+
+    @Override
+    public HttpField getHttpField(String headerName) {
+        return this.part.getHeaders().get(headerName);
     }
 
     public class MultiPart implements Part {

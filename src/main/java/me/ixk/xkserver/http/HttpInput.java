@@ -47,6 +47,22 @@ public class HttpInput extends ServletInputStream {
         return this.buffers.get(this.index.get()).hasRemaining();
     }
 
+    public List<ByteBuffer> getBuffers() {
+        return buffers;
+    }
+
+    public ByteBuffer readByteBuffer() {
+        if (this.index.get() >= this.buffers.size()) {
+            return null;
+        }
+        final ByteBuffer buffer = this.buffers.get(this.index.get());
+        if (buffer.hasRemaining()) {
+            return buffer;
+        }
+        this.index.getAndIncrement();
+        return this.readByteBuffer();
+    }
+
     @Override
     public synchronized void reset() throws IOException {
         for (ByteBuffer buffer : this.buffers) {
