@@ -155,29 +155,36 @@ public class Request implements HttpServletRequest {
 
     @Override
     public long getDateHeader(final String name) {
-        // TODO: 未完成
-        return 0;
+        final HttpField field = this.httpFields.get(name);
+        if (field == null) {
+            return -1;
+        }
+        final String value = field.getParamValue();
+        if (value == null) {
+            return -1;
+        }
+        return DateParser.parseDate(value);
     }
 
     @Override
     public String getHeader(final String name) {
-        return httpFields.getValue(name);
+        return this.httpFields.getValue(name);
     }
 
     @Override
     public Enumeration<String> getHeaders(final String name) {
-        return Collections.enumeration(httpFields.getValues(name));
+        return Collections.enumeration(this.httpFields.getValues(name));
     }
 
     @Override
     public Enumeration<String> getHeaderNames() {
-        return Collections.enumeration(httpFields.keySet());
+        return Collections.enumeration(this.httpFields.keySet());
     }
 
     @Override
     public int getIntHeader(final String name) {
-        // TODO: 未完成
-        return 0;
+        final String value = this.getHeader(name);
+        return value == null ? -1 : Integer.parseInt(value);
     }
 
     @Override
@@ -235,14 +242,39 @@ public class Request implements HttpServletRequest {
 
     @Override
     public String getRequestURI() {
-        // TODO: 未完成
-        return null;
+        return this.httpUri == null ? null : this.httpUri.getPath();
     }
 
     @Override
     public StringBuffer getRequestURL() {
-        // TODO: 未完成
-        return null;
+        if (this.httpUri == null) {
+            return null;
+        }
+        StringBuffer url = new StringBuffer();
+        final String scheme = this.getScheme();
+        url
+            .append(scheme)
+            .append("://")
+            .append(this.normalizeHost(this.getServerName()));
+        final int port = this.getServerPort();
+        if (port > 0) {
+            switch (scheme) {
+                case "http":
+                    if (port != 80) {
+                        url.append(":").append(port);
+                    }
+                    break;
+                case "https":
+                    if (port != 443) {
+                        url.append(":").append(port);
+                    }
+                    break;
+                default:
+                    url.append(":").append(port);
+            }
+        }
+        url.append(this.getRequestURI());
+        return url;
     }
 
     @Override
@@ -814,24 +846,24 @@ public class Request implements HttpServletRequest {
             parser.parse(this.httpInput.readByteBuffer());
         }
         ByteArrayOutputStream os = null;
-        for (Part part : this.multiParts.getCollection()) {
+        for (final Part part : this.multiParts.getCollection()) {
             if (part.getSubmittedFileName() == null) {
                 String charset = null;
                 if (part.getContentType() != null) {
-                    HttpField contentType = new HttpField(
+                    final HttpField contentType = new HttpField(
                         HttpHeader.CONTENT_TYPE,
                         Collections.singletonList(this.getContentType())
                     );
                     charset = contentType.getParam("charset");
                 }
 
-                try (InputStream is = part.getInputStream()) {
+                try (final InputStream is = part.getInputStream()) {
                     if (os == null) {
                         os = new ByteArrayOutputStream();
                     }
                     IoUtil.copy(is, os);
 
-                    String content = new String(
+                    final String content = new String(
                         os.toByteArray(),
                         Charset.forName(
                             charset == null
@@ -843,7 +875,7 @@ public class Request implements HttpServletRequest {
                         this.contentParameters = new MultiMap<>();
                     }
                     this.contentParameters.add(part.getName(), content);
-                } catch (IOException e) {
+                } catch (final IOException e) {
                     throw new BadMessageException(
                         "Unable to parse multi parts",
                         e
