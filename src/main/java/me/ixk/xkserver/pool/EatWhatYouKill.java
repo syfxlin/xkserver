@@ -2,24 +2,19 @@
  * Copyright (c) 2020, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
  *
  */
-
 package me.ixk.xkserver.pool;
 
 import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
-import me.ixk.xkserver.life.AbstractLifeCycle;
 import me.ixk.xkserver.utils.AutoLock;
 
 /**
- * 已知 Bug，因分配策略存在问题导致所有 Selector 被占用的时候无法接受连接
- *
  * @author Otstar Lin
  * @date 2020/10/20 下午 6:07
  */
 @Slf4j
-public class EatWhatYouKill
-    extends AbstractLifeCycle
-    implements ExecutionStrategy, Runnable {
+public class EatWhatYouKill implements ExecutionStrategy, Runnable {
+    private volatile boolean isRunning;
 
     private enum State {
         /**
@@ -55,11 +50,11 @@ public class EatWhatYouKill
     public EatWhatYouKill(final Producer producer, final Executor executor) {
         this.producer = producer;
         this.executor = TryExecutor.asTryExecutor(executor);
-        try {
-            this.start();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        this.isRunning = true;
+    }
+
+    public void setRunning(final boolean running) {
+        isRunning = running;
     }
 
     @Override
@@ -82,7 +77,7 @@ public class EatWhatYouKill
             }
         }
 
-        while (this.isRunning()) {
+        while (isRunning) {
             try {
                 if (this.doProduce()) {
                     continue;
@@ -117,6 +112,7 @@ public class EatWhatYouKill
                 this.state = State.IDLE;
                 mode = Mode.EXECUTE_PRODUCE_CONSUME;
             } else {
+                log.info("Use PEC mode");
                 mode = Mode.PRODUCE_EXECUTE_CONSUME;
             }
         }
@@ -127,7 +123,7 @@ public class EatWhatYouKill
                 return true;
             case EXECUTE_PRODUCE_CONSUME:
                 this.runTask(task);
-                try (AutoLock l = this.lock.lock()) {
+                try (final AutoLock l = this.lock.lock()) {
                     if (this.state == State.IDLE) {
                         this.state = State.PRODUCING;
                         return true;
@@ -144,10 +140,12 @@ public class EatWhatYouKill
     }
 
     private void executeTask(final Runnable task) {
+        log.info("Run task in pool");
         this.executor.execute(task);
     }
 
     private void runTask(final Runnable task) {
+        log.info("Run task in loop");
         task.run();
     }
 }

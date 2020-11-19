@@ -203,10 +203,10 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         ) {
             return () -> {
                 try {
-                    final ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
-                    this.channel.read(byteBuffer);
-                    log.info("{}", new String(byteBuffer.array()).trim());
-                    log.info("Poller: {}", Poller.this.id);
+                    // final ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+                    // this.channel.read(byteBuffer);
+                    // log.info("{}", new String(byteBuffer.array()).trim());
+                    // log.info("Poller: {}", Poller.this.id);
                     this.channel.write(
                             ByteBuffer.wrap(
                                 (
@@ -222,12 +222,12 @@ public class Poller extends AbstractLifeCycle implements Runnable {
                                 ).getBytes(StandardCharsets.UTF_8)
                             )
                         );
-                    try {
-                        // 模拟业务阻塞
-                        Thread.sleep(50);
-                    } catch (final InterruptedException e) {
-                        e.printStackTrace();
-                    }
+                    // try {
+                    //     // 模拟业务阻塞
+                    //     Thread.sleep(50);
+                    // } catch (final InterruptedException e) {
+                    //     e.printStackTrace();
+                    // }
                     this.channel.close();
                 } catch (final IOException e) {
                     log.error("Read error", e);
