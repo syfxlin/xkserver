@@ -2,19 +2,24 @@
  * Copyright (c) 2020, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
  *
  */
+
 package me.ixk.xkserver.pool;
 
 import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
+import me.ixk.xkserver.life.AbstractLifeCycle;
 import me.ixk.xkserver.utils.AutoLock;
 
 /**
+ * 已知 Bug，因分配策略存在问题导致所有 Selector 被占用的时候无法接受连接
+ *
  * @author Otstar Lin
  * @date 2020/10/20 下午 6:07
  */
 @Slf4j
-public class EatWhatYouKill implements ExecutionStrategy, Runnable {
-    private volatile boolean isRunning;
+public class EatWhatYouKill
+    extends AbstractLifeCycle
+    implements ExecutionStrategy, Runnable {
 
     private enum State {
         /**
@@ -50,11 +55,11 @@ public class EatWhatYouKill implements ExecutionStrategy, Runnable {
     public EatWhatYouKill(final Producer producer, final Executor executor) {
         this.producer = producer;
         this.executor = TryExecutor.asTryExecutor(executor);
-        this.isRunning = true;
-    }
-
-    public void setRunning(final boolean running) {
-        isRunning = running;
+        try {
+            this.start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -77,7 +82,7 @@ public class EatWhatYouKill implements ExecutionStrategy, Runnable {
             }
         }
 
-        while (isRunning) {
+        while (this.isRunning()) {
             try {
                 if (this.doProduce()) {
                     continue;
