@@ -71,9 +71,11 @@ public class EatWhatYouKill
     public void execute() {
         try (final AutoLock l = lock.lock()) {
             switch (this.state) {
+                // 如果是空闲状态，则进入生产状态
                 case IDLE:
                     this.state = State.PRODUCING;
                     break;
+                // 如果是生产状态，则进入再生产状态
                 case PRODUCING:
                     this.state = State.REPRODUCING;
                     return;
@@ -82,8 +84,10 @@ public class EatWhatYouKill
             }
         }
 
+        // 处于运行中则轮询的执行任务
         while (this.isRunning()) {
             try {
+                // 当任务被提交到其他线程执行的时候，或者当前的任务执行完毕了，则返回 true，继续执行下一个任务
                 if (this.doProduce()) {
                     continue;
                 }
@@ -97,6 +101,7 @@ public class EatWhatYouKill
     private boolean doProduce() {
         final Runnable task = this.produceTask();
         if (task == null) {
+            // 没任务了，则进入下一个状态
             try (final AutoLock l = this.lock.lock()) {
                 switch (this.state) {
                     case PRODUCING:
@@ -113,6 +118,7 @@ public class EatWhatYouKill
         final Mode mode;
 
         try (final AutoLock l = this.lock.lock()) {
+            // 尝试到线程池中执行，如果不繁忙则执行成功，进入 EPC 模式，否则进入 PEC 模式
             if (this.executor.tryExecute(this)) {
                 this.state = State.IDLE;
                 mode = Mode.EXECUTE_PRODUCE_CONSUME;
@@ -122,6 +128,7 @@ public class EatWhatYouKill
             }
         }
 
+        // 按对应的模式使用不同的执行方式
         switch (mode) {
             case PRODUCE_EXECUTE_CONSUME:
                 this.executeTask(task);
