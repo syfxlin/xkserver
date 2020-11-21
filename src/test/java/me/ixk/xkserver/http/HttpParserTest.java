@@ -33,6 +33,7 @@ class HttpParserTest {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
         parser.parse(this.link(this.startLine(), this.fixedContentHeaders()));
+        parser.end();
         this.assertStartLine(handler);
     }
 
@@ -41,6 +42,7 @@ class HttpParserTest {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
         parser.parse(this.link(this.startLine(), this.fixedContentHeaders()));
+        parser.end();
         this.assertHeaders(handler);
     }
 
@@ -48,8 +50,14 @@ class HttpParserTest {
     void parseFixedContent() {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
-        parser.parse(this.link(this.startLine(), this.fixedContentHeaders(),
-            this.fixedContent()));
+        parser.parse(
+            this.link(
+                    this.startLine(),
+                    this.fixedContentHeaders(),
+                    this.fixedContent()
+                )
+        );
+        parser.end();
         this.assertStartLine(handler);
         this.assertHeaders(handler);
         this.assertContent(handler, this.fixedContent());
@@ -60,11 +68,13 @@ class HttpParserTest {
         final RequestHandlerImpl h1 = new RequestHandlerImpl();
         final HttpParser p1 = new HttpParser(h1);
         p1.parse(this.link(this.startLine(), this.emptyContentHeaders()));
+        p1.end();
         this.assertContent(h1, ByteBuffer.allocate(0));
 
         final RequestHandlerImpl h2 = new RequestHandlerImpl();
         final HttpParser p2 = new HttpParser(h2);
         p2.parse(this.link(this.startLine(), this.emptyContentHeaders()));
+        p2.end();
         this.assertContent(h2, ByteBuffer.allocate(0));
     }
 
@@ -72,8 +82,14 @@ class HttpParserTest {
     void parseChunkContent() {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
-        parser.parse(this.link(this.startLine(), this.chunkContentHeaders(),
-            this.chunkContent()));
+        parser.parse(
+            this.link(
+                    this.startLine(),
+                    this.chunkContentHeaders(),
+                    this.chunkContent()
+                )
+        );
+        parser.end();
         this.assertContent(handler, this.wrap("MozillaDeveloperNetwork"));
     }
 
@@ -81,8 +97,14 @@ class HttpParserTest {
     void parseTrailer() {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
-        parser.parse(this.link(this.startLine(), this.trailerContentHeaders(),
-            this.trailerContent()));
+        parser.parse(
+            this.link(
+                    this.startLine(),
+                    this.trailerContentHeaders(),
+                    this.trailerContent()
+                )
+        );
+        parser.end();
         this.assertContent(handler, this.wrap("MozillaDeveloperNetwork"));
         assertTrue(handler.getHttpFields().containsKey("Expires"));
     }
@@ -93,6 +115,7 @@ class HttpParserTest {
         final HttpParser parser = new HttpParser(handler);
         parser.parse(this.startLine());
         parser.parse(this.fixedContentHeaders());
+        parser.end();
         this.assertStartLine(handler);
         this.assertHeaders(handler);
     }
@@ -106,6 +129,7 @@ class HttpParserTest {
         parser.parse(this.wrap("name"));
         parser.parse(this.wrap("="));
         parser.parse(this.wrap("syfxlin\r\n"));
+        parser.end();
         this.assertContent(handler, this.fixedContent());
     }
 
@@ -119,6 +143,7 @@ class HttpParserTest {
         parser.parse(this.wrap("9\r\nDeveloper\r\n"));
         parser.parse(this.wrap("7\r\nNetwork\r\n"));
         parser.parse(this.wrap("0\r\n\r\n"));
+        parser.end();
         this.assertContent(handler, this.wrap("MozillaDeveloperNetwork"));
     }
 
@@ -131,12 +156,15 @@ class HttpParserTest {
         parser.parse(this.wrap("7\r\nMozilla\r\n"));
         parser.parse(this.wrap("9\r\nDeveloper\r\n"));
         parser.parse(this.wrap("7\r\nNetwork\r\n"));
-        parser.setEof(true);
         parser.parse(this.wrap("0\r\n\r\n"));
+        parser.end();
         this.assertContent(handler, this.wrap("MozillaDeveloperNetwork"));
-        assertThrows(BadMessageException.class, () -> {
-            parser.parse(this.wrap("123"));
-        });
+        assertThrows(
+            BadMessageException.class,
+            () -> {
+                parser.parse(this.wrap("123"));
+            }
+        );
     }
 
     @Test
@@ -147,23 +175,31 @@ class HttpParserTest {
         parser.parse(this.fixedContentHeaders());
         parser.parse(this.wrap("name"));
         parser.parse(this.wrap("="));
-        parser.setEof(true);
         parser.parse(this.wrap("syfxlin\r\n"));
+        parser.end();
         this.assertContent(handler, this.fixedContent());
-        assertThrows(BadMessageException.class,
-            () -> parser.parse(this.wrap("123")));
+        assertThrows(
+            BadMessageException.class,
+            () -> parser.parse(this.wrap("123"))
+        );
     }
 
     @Test
     void splitFixedInput() {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
-        final ByteBuffer buffer = this
-            .link(this.startLine(), this.fixedContentHeaders(),
-                this.fixedContent());
+        final ByteBuffer buffer =
+            this.link(
+                    this.startLine(),
+                    this.fixedContentHeaders(),
+                    this.fixedContent()
+                );
         Arrays
             .stream(StrUtil.str(buffer, StandardCharsets.ISO_8859_1).split(""))
-            .map(String::getBytes).map(ByteBuffer::wrap).forEach(parser::parse);
+            .map(String::getBytes)
+            .map(ByteBuffer::wrap)
+            .forEach(parser::parse);
+        parser.end();
         this.assertStartLine(handler);
         this.assertHeaders(handler);
         this.assertContent(handler, this.fixedContent());
@@ -173,12 +209,18 @@ class HttpParserTest {
     void splitChunkInput() {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
-        final ByteBuffer buffer = this
-            .link(this.startLine(), this.chunkContentHeaders(),
-                this.chunkContent());
+        final ByteBuffer buffer =
+            this.link(
+                    this.startLine(),
+                    this.chunkContentHeaders(),
+                    this.chunkContent()
+                );
         Arrays
             .stream(StrUtil.str(buffer, StandardCharsets.ISO_8859_1).split(""))
-            .map(String::getBytes).map(ByteBuffer::wrap).forEach(parser::parse);
+            .map(String::getBytes)
+            .map(ByteBuffer::wrap)
+            .forEach(parser::parse);
+        parser.end();
         this.assertStartLine(handler);
         this.assertHeaders(handler);
         this.assertContent(handler, this.wrap("MozillaDeveloperNetwork"));
@@ -188,12 +230,18 @@ class HttpParserTest {
     void splitTrailerInput() {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
-        final ByteBuffer buffer = this
-            .link(this.startLine(), this.trailerContentHeaders(),
-                this.trailerContent());
+        final ByteBuffer buffer =
+            this.link(
+                    this.startLine(),
+                    this.trailerContentHeaders(),
+                    this.trailerContent()
+                );
         Arrays
             .stream(StrUtil.str(buffer, StandardCharsets.ISO_8859_1).split(""))
-            .map(String::getBytes).map(ByteBuffer::wrap).forEach(parser::parse);
+            .map(String::getBytes)
+            .map(ByteBuffer::wrap)
+            .forEach(parser::parse);
+        parser.end();
         this.assertContent(handler, this.wrap("MozillaDeveloperNetwork"));
         assertTrue(handler.getHttpFields().containsKey("Expires"));
     }
@@ -205,13 +253,19 @@ class HttpParserTest {
     }
 
     private void assertHeaders(final RequestHandlerImpl handler) {
-        final Map<String, String> headers = Map
-            .of("Host", "ixk.me", "Accept", "text/html", "Accept-Encoding",
-                "gzip, deflate, br");
+        final Map<String, String> headers = Map.of(
+            "Host",
+            "ixk.me",
+            "Accept",
+            "text/html",
+            "Accept-Encoding",
+            "gzip, deflate, br"
+        );
         final Map<String, HttpField> parserHeaders = handler.getHttpFields();
         for (final Entry<String, String> entry : headers.entrySet()) {
-            final List<String> list = parserHeaders.get(entry.getKey())
-                                                   .getValues();
+            final List<String> list = parserHeaders
+                .get(entry.getKey())
+                .getValues();
             if (list == null || list.isEmpty()) {
                 fail("Header [" + entry.getKey() + "] not exist");
             }
@@ -219,11 +273,14 @@ class HttpParserTest {
         }
     }
 
-    private void assertContent(final RequestHandlerImpl handler,
-        final ByteBuffer buffer) {
-        final String content = IoUtil.getUtf8Reader(handler.getHttpInput())
-                                     .lines()
-                                     .collect(Collectors.joining("\r\n"));
+    private void assertContent(
+        final RequestHandlerImpl handler,
+        final ByteBuffer buffer
+    ) {
+        final String content = IoUtil
+            .getUtf8Reader(handler.getHttpInput())
+            .lines()
+            .collect(Collectors.joining("\r\n"));
         assertEquals(this.str(buffer).trim(), content.trim());
     }
 
@@ -232,9 +289,15 @@ class HttpParserTest {
     }
 
     private ByteBuffer fixedContentHeaders() {
-        return this.wrap("Host: ixk.me\r\n" + "Accept: text/html\r\n"
-            + "Accept-Encoding: gzip, deflate, br\r\n" + "Content-Length: "
-            + this.fixedContent().remaining() + "\r\n" + "\r\n");
+        return this.wrap(
+                "Host: ixk.me\r\n" +
+                "Accept: text/html\r\n" +
+                "Accept-Encoding: gzip, deflate, br\r\n" +
+                "Content-Length: " +
+                this.fixedContent().remaining() +
+                "\r\n" +
+                "\r\n"
+            );
     }
 
     private ByteBuffer fixedContent() {
@@ -242,29 +305,51 @@ class HttpParserTest {
     }
 
     private ByteBuffer chunkContentHeaders() {
-        return this.wrap("Host: ixk.me\r\n" + "Accept: text/html\r\n"
-            + "Accept-Encoding: gzip, deflate, br\r\n"
-            + "Transfer-Encoding: chunked\r\n" + "\r\n");
+        return this.wrap(
+                "Host: ixk.me\r\n" +
+                "Accept: text/html\r\n" +
+                "Accept-Encoding: gzip, deflate, br\r\n" +
+                "Transfer-Encoding: chunked\r\n" +
+                "\r\n"
+            );
     }
 
     private ByteBuffer chunkContent() {
         return this.wrap(
-            "7\r\n" + "Mozilla\r\n" + "9\r\n" + "Developer\r\n" + "7\r\n"
-                + "Network\r\n" + "0\r\n" + "\r\n");
+                "7\r\n" +
+                "Mozilla\r\n" +
+                "9\r\n" +
+                "Developer\r\n" +
+                "7\r\n" +
+                "Network\r\n" +
+                "0\r\n" +
+                "\r\n"
+            );
     }
 
     private ByteBuffer trailerContentHeaders() {
-        return this.wrap("Host: ixk.me\r\n" + "Accept: text/html\r\n"
-            + "Accept-Encoding: gzip, deflate, br\r\n"
-            + "Transfer-Encoding: chunked\r\n" + "Trailer: Expires\r\n"
-            + "\r\n");
+        return this.wrap(
+                "Host: ixk.me\r\n" +
+                "Accept: text/html\r\n" +
+                "Accept-Encoding: gzip, deflate, br\r\n" +
+                "Transfer-Encoding: chunked\r\n" +
+                "Trailer: Expires\r\n" +
+                "\r\n"
+            );
     }
 
     private ByteBuffer trailerContent() {
         return this.wrap(
-            "7\r\n" + "Mozilla\r\n" + "9\r\n" + "Developer\r\n" + "7\r\n"
-                + "Network\r\n" + "0\r\n"
-                + "Expires: Wed, 21 Oct 2015 07:28:00 GMT\r\n" + "\r\n");
+                "7\r\n" +
+                "Mozilla\r\n" +
+                "9\r\n" +
+                "Developer\r\n" +
+                "7\r\n" +
+                "Network\r\n" +
+                "0\r\n" +
+                "Expires: Wed, 21 Oct 2015 07:28:00 GMT\r\n" +
+                "\r\n"
+            );
     }
 
     private ByteBuffer emptyContentHeaders() {
@@ -277,8 +362,12 @@ class HttpParserTest {
 
     private ByteBuffer link(final ByteBuffer... buffers) {
         return this.wrap(
-            Arrays.stream(buffers).map(ByteBuffer::array).map(String::new)
-                  .collect(Collectors.joining()));
+                Arrays
+                    .stream(buffers)
+                    .map(ByteBuffer::array)
+                    .map(String::new)
+                    .collect(Collectors.joining())
+            );
     }
 
     private String str(final ByteBuffer buffer) {
@@ -286,7 +375,6 @@ class HttpParserTest {
     }
 
     private static class RequestHandlerImpl implements RequestHandler {
-
         private HttpMethod httpMethod;
         private HttpUri httpUri;
         private HttpVersion httpVersion;
@@ -325,7 +413,12 @@ class HttpParserTest {
 
         @Override
         public void addContent(final ByteBuffer buffer) {
-            this.httpInput.addBuffer(buffer);
+            this.httpInput.writeBuffer(buffer);
+        }
+
+        @Override
+        public void requestComplete() {
+            this.httpInput.flip();
         }
 
         public HttpMethod getHttpMethod() {

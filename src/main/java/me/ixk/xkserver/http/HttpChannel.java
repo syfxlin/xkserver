@@ -106,7 +106,12 @@ public class HttpChannel implements RequestHandler {
 
     @Override
     public void addContent(ByteBuffer buffer) {
-        this.httpInput.addBuffer(buffer);
+        this.httpInput.writeBuffer(buffer);
+    }
+
+    @Override
+    public void requestComplete() {
+        this.httpInput.flip();
     }
 
     public HttpMethod getHttpMethod() {

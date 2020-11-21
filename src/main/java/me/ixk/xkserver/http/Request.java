@@ -842,8 +842,8 @@ public class Request implements HttpServletRequest {
             this.multiParts,
             boundary
         );
-        while (!this.httpInput.isFinished()) {
-            parser.parse(this.httpInput.readByteBuffer());
+        if (this.httpInput.isReady()) {
+            parser.parse(this.httpInput.readBuffer());
         }
         ByteArrayOutputStream os = null;
         for (final Part part : this.multiParts.getCollection()) {

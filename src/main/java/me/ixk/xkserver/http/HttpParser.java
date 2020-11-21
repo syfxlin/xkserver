@@ -155,8 +155,7 @@ public class HttpParser {
             this.parseCrLf(buffer);
 
             if (this.isEof() && !buffer.hasRemaining()) {
-                this.handler.requestComplete();
-                this.state = State.END;
+                this.end();
             }
         } catch (final BadMessageException e) {
             this.handler.failure(e);
@@ -165,6 +164,12 @@ public class HttpParser {
                     new BadMessageException(HttpStatus.BAD_REQUEST, e)
                 );
         }
+    }
+
+    public void end() {
+        this.setEof(true);
+        this.handler.requestComplete();
+        this.state = State.END;
     }
 
     private void parseLine(final ByteBuffer buffer) {

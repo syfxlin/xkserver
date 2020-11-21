@@ -130,8 +130,7 @@ public class MultiPartParser {
                         throw new IllegalStateException();
                 }
                 if (this.isEof() && !buffer.hasRemaining()) {
-                    this.handler.partComplete();
-                    this.state = State.END;
+                    this.end();
                 }
             }
         } catch (final BadMessageException e) {
@@ -141,6 +140,12 @@ public class MultiPartParser {
                     new BadMessageException(HttpStatus.BAD_REQUEST, e)
                 );
         }
+    }
+
+    public void end() {
+        this.setEof(true);
+        this.handler.partComplete();
+        this.state = State.END;
     }
 
     private void parseDelimiter(final ByteBuffer buffer) {

@@ -52,6 +52,7 @@ class RequestTest {
         final HttpChannel c1 = newChannel();
         final HttpParser p1 = new HttpParser(c1);
         p1.parse(queryRequest());
+        p1.end();
         assertEquals(HttpMethod.GET, c1.getHttpMethod());
         assertEquals("/welcome", c1.getHttpUri().getPath());
         assertEquals("age=18&name=syfxlin", c1.getHttpUri().getQuery());
@@ -65,16 +66,19 @@ class RequestTest {
         final HttpChannel c2 = newChannel();
         final HttpParser p2 = new HttpParser(c2);
         p2.parse(bodyRequest());
+        p2.end();
         bodyRequest = new Request(c2);
 
         final HttpChannel c3 = newChannel();
         final HttpParser p3 = new HttpParser(c3);
         p3.parse(multiPartRequest());
+        p3.end();
         multiRequest = new Request(c3);
 
         final HttpChannel c4 = newChannel();
         final HttpParser p4 = new HttpParser(c4);
         p4.parse(jsonRequest());
+        p4.end();
         jsonRequest = new Request(c4);
     }
 
@@ -83,6 +87,7 @@ class RequestTest {
         final HttpChannel channel = newChannel();
         final HttpParser parser = new HttpParser(channel);
         parser.parse(queryRequest());
+        parser.end();
         final Request request = new Request(channel);
         this.assertCookies(request);
     }
@@ -271,6 +276,7 @@ class RequestTest {
         final HttpChannel channel = newChannel();
         final HttpParser parser = new HttpParser(channel);
         parser.parse(bodyRequest());
+        parser.end();
         final Request request = new Request(channel);
         try {
             assertEquals(
@@ -340,6 +346,7 @@ class RequestTest {
         final HttpChannel channel = newChannel();
         final HttpParser parser = new HttpParser(channel);
         parser.parse(bodyRequest());
+        parser.end();
         final Request request = new Request(channel);
         try {
             assertEquals(
