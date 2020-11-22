@@ -22,6 +22,8 @@ import java.util.stream.Collectors;
 import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.http.Part;
 import me.ixk.xkserver.http.MultiPartParser.PartHandler;
+import me.ixk.xkserver.io.ByteBufferPool;
+import me.ixk.xkserver.io.ByteBufferStream;
 import me.ixk.xkserver.utils.MultiMap;
 import me.ixk.xkserver.utils.ResourceUtils;
 
@@ -106,6 +108,11 @@ public class MultiParts implements PartHandler {
     }
 
     @Override
+    public ByteBufferPool bufferPool() {
+        return ByteBufferPool.defaultPool();
+    }
+
+    @Override
     public void startPart() {
         this.part = new MultiPart();
         this.part.setHeaders(new HttpFields());
@@ -117,9 +124,9 @@ public class MultiParts implements PartHandler {
     }
 
     @Override
-    public void addContent(ByteBuffer buffer) {
+    public void addContent(ByteBufferStream buffer) {
         try {
-            this.part.write(buffer);
+            this.part.write(buffer.getInputStream());
         } catch (final IOException e) {
             throw new BadMessageException("Unable to parse multipart body", e);
         }
@@ -215,6 +222,17 @@ public class MultiParts implements PartHandler {
             this.check(1);
             this.out.write(b);
             this.size++;
+        }
+
+        public void write(InputStream stream) throws IOException {
+            byte[] bytes = new byte[8192];
+            for (;;) {
+                int length = stream.read(bytes);
+                if (length == -1) {
+                    break;
+                }
+                write(bytes, 0, length);
+            }
         }
 
         public void flushWrite() throws IOException {

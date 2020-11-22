@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import cn.hutool.core.io.IoUtil;
-import cn.hutool.core.util.StrUtil;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -20,6 +19,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import me.ixk.xkserver.http.HttpParser.RequestHandler;
+import me.ixk.xkserver.io.ByteBufferPool;
+import me.ixk.xkserver.io.ByteBufferStream;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -69,13 +70,13 @@ class HttpParserTest {
         final HttpParser p1 = new HttpParser(h1);
         p1.parse(this.link(this.startLine(), this.emptyContentHeaders()));
         p1.end();
-        this.assertContent(h1, ByteBuffer.allocate(0));
+        this.assertContent(h1, ByteBufferStream.wrap(new byte[0]));
 
         final RequestHandlerImpl h2 = new RequestHandlerImpl();
         final HttpParser p2 = new HttpParser(h2);
         p2.parse(this.link(this.startLine(), this.emptyContentHeaders()));
         p2.end();
-        this.assertContent(h2, ByteBuffer.allocate(0));
+        this.assertContent(h2, ByteBufferStream.wrap(new byte[0]));
     }
 
     @Test
@@ -188,16 +189,20 @@ class HttpParserTest {
     void splitFixedInput() {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
-        final ByteBuffer buffer =
+        final ByteBufferStream buffer =
             this.link(
                     this.startLine(),
                     this.fixedContentHeaders(),
                     this.fixedContent()
                 );
         Arrays
-            .stream(StrUtil.str(buffer, StandardCharsets.ISO_8859_1).split(""))
+            .stream(
+                IoUtil
+                    .read(buffer.getInputStream(), StandardCharsets.ISO_8859_1)
+                    .split("")
+            )
             .map(String::getBytes)
-            .map(ByteBuffer::wrap)
+            .map(ByteBufferStream::wrap)
             .forEach(parser::parse);
         parser.end();
         this.assertStartLine(handler);
@@ -209,16 +214,20 @@ class HttpParserTest {
     void splitChunkInput() {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
-        final ByteBuffer buffer =
+        final ByteBufferStream buffer =
             this.link(
                     this.startLine(),
                     this.chunkContentHeaders(),
                     this.chunkContent()
                 );
         Arrays
-            .stream(StrUtil.str(buffer, StandardCharsets.ISO_8859_1).split(""))
+            .stream(
+                IoUtil
+                    .read(buffer.getInputStream(), StandardCharsets.ISO_8859_1)
+                    .split("")
+            )
             .map(String::getBytes)
-            .map(ByteBuffer::wrap)
+            .map(ByteBufferStream::wrap)
             .forEach(parser::parse);
         parser.end();
         this.assertStartLine(handler);
@@ -230,16 +239,20 @@ class HttpParserTest {
     void splitTrailerInput() {
         final RequestHandlerImpl handler = new RequestHandlerImpl();
         final HttpParser parser = new HttpParser(handler);
-        final ByteBuffer buffer =
+        final ByteBufferStream buffer =
             this.link(
                     this.startLine(),
                     this.trailerContentHeaders(),
                     this.trailerContent()
                 );
         Arrays
-            .stream(StrUtil.str(buffer, StandardCharsets.ISO_8859_1).split(""))
+            .stream(
+                IoUtil
+                    .read(buffer.getInputStream(), StandardCharsets.ISO_8859_1)
+                    .split("")
+            )
             .map(String::getBytes)
-            .map(ByteBuffer::wrap)
+            .map(ByteBufferStream::wrap)
             .forEach(parser::parse);
         parser.end();
         this.assertContent(handler, this.wrap("MozillaDeveloperNetwork"));
@@ -275,7 +288,7 @@ class HttpParserTest {
 
     private void assertContent(
         final RequestHandlerImpl handler,
-        final ByteBuffer buffer
+        final ByteBufferStream buffer
     ) {
         final String content = IoUtil
             .getUtf8Reader(handler.getHttpInput())
@@ -284,11 +297,11 @@ class HttpParserTest {
         assertEquals(this.str(buffer).trim(), content.trim());
     }
 
-    private ByteBuffer startLine() {
+    private ByteBufferStream startLine() {
         return this.wrap("GET /url HTTP/1.1\r\n");
     }
 
-    private ByteBuffer fixedContentHeaders() {
+    private ByteBufferStream fixedContentHeaders() {
         return this.wrap(
                 "Host: ixk.me\r\n" +
                 "Accept: text/html\r\n" +
@@ -300,11 +313,11 @@ class HttpParserTest {
             );
     }
 
-    private ByteBuffer fixedContent() {
+    private ByteBufferStream fixedContent() {
         return this.wrap("name=syfxlin\r\n");
     }
 
-    private ByteBuffer chunkContentHeaders() {
+    private ByteBufferStream chunkContentHeaders() {
         return this.wrap(
                 "Host: ixk.me\r\n" +
                 "Accept: text/html\r\n" +
@@ -314,7 +327,7 @@ class HttpParserTest {
             );
     }
 
-    private ByteBuffer chunkContent() {
+    private ByteBufferStream chunkContent() {
         return this.wrap(
                 "7\r\n" +
                 "Mozilla\r\n" +
@@ -327,7 +340,7 @@ class HttpParserTest {
             );
     }
 
-    private ByteBuffer trailerContentHeaders() {
+    private ByteBufferStream trailerContentHeaders() {
         return this.wrap(
                 "Host: ixk.me\r\n" +
                 "Accept: text/html\r\n" +
@@ -338,7 +351,7 @@ class HttpParserTest {
             );
     }
 
-    private ByteBuffer trailerContent() {
+    private ByteBufferStream trailerContent() {
         return this.wrap(
                 "7\r\n" +
                 "Mozilla\r\n" +
@@ -352,26 +365,36 @@ class HttpParserTest {
             );
     }
 
-    private ByteBuffer emptyContentHeaders() {
+    private ByteBufferStream emptyContentHeaders() {
         return this.wrap("Content-Length: 0\r\n\r\n");
     }
 
-    private ByteBuffer wrap(final String string) {
-        return ByteBuffer.wrap(string.getBytes(StandardCharsets.ISO_8859_1));
+    private ByteBufferStream wrap(final String string) {
+        return new ByteBufferStream(
+            ByteBuffer.wrap(string.getBytes(StandardCharsets.ISO_8859_1))
+        );
     }
 
-    private ByteBuffer link(final ByteBuffer... buffers) {
+    private ByteBufferStream link(final ByteBufferStream... buffers) {
         return this.wrap(
                 Arrays
                     .stream(buffers)
-                    .map(ByteBuffer::array)
-                    .map(String::new)
+                    .map(
+                        b ->
+                            IoUtil.read(
+                                b.getInputStream(),
+                                StandardCharsets.ISO_8859_1
+                            )
+                    )
                     .collect(Collectors.joining())
             );
     }
 
-    private String str(final ByteBuffer buffer) {
-        return StrUtil.str(buffer, StandardCharsets.ISO_8859_1);
+    private String str(final ByteBufferStream buffer) {
+        return IoUtil.read(
+            buffer.getInputStream(),
+            StandardCharsets.ISO_8859_1
+        );
     }
 
     private static class RequestHandlerImpl implements RequestHandler {
@@ -380,6 +403,11 @@ class HttpParserTest {
         private HttpVersion httpVersion;
         private final HttpFields httpFields = new HttpFields();
         private final HttpInput httpInput = new HttpInput();
+
+        @Override
+        public ByteBufferPool bufferPool() {
+            return ByteBufferPool.defaultPool();
+        }
 
         @Override
         public void setHttpMethod(final HttpMethod method) {
@@ -412,7 +440,7 @@ class HttpParserTest {
         }
 
         @Override
-        public void addContent(final ByteBuffer buffer) {
+        public void addContent(final ByteBufferStream buffer) {
             this.httpInput.writeBuffer(buffer);
         }
 

@@ -9,6 +9,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import me.ixk.xkserver.http.HttpTokens.Token;
 import me.ixk.xkserver.http.HttpTokens.Type;
+import me.ixk.xkserver.io.ByteBufferPool;
+import me.ixk.xkserver.io.ByteBufferStream;
 
 /**
  * Multipart 解析器
@@ -71,7 +73,7 @@ public class MultiPartParser {
     private final PartHandler handler;
     private final SearchPattern delimiterSearch;
     private final int maxHeaderByteLength;
-    private final ByteBuffer patternBuffer;
+    private final ByteBufferStream patternBuffer;
 
     private final StringBuilder string = new StringBuilder();
     private final StringBuilder value = new StringBuilder();
@@ -91,12 +93,15 @@ public class MultiPartParser {
         this.handler = handler;
         final String delimiter = "\r\n--" + boundary;
         this.patternBuffer =
-            ByteBuffer.wrap(delimiter.getBytes(StandardCharsets.US_ASCII));
+            new ByteBufferStream(
+                ByteBuffer.wrap(delimiter.getBytes(StandardCharsets.US_ASCII)),
+                handler.bufferPool()
+            );
         this.delimiterSearch = SearchPattern.compile(delimiter);
         this.maxHeaderByteLength = maxHeaderByteLength;
     }
 
-    public void parse(final ByteBuffer buffer) {
+    public void parse(final ByteBufferStream buffer) {
         try {
             if (this.state == State.END) {
                 throw new IllegalStateException("PartParser status is END");
@@ -148,7 +153,7 @@ public class MultiPartParser {
         this.state = State.END;
     }
 
-    private void parseDelimiter(final ByteBuffer buffer) {
+    private void parseDelimiter(final ByteBufferStream buffer) {
         if (
             this.state.ordinal() >= State.HEADER.ordinal() ||
             !buffer.hasRemaining()
@@ -248,7 +253,7 @@ public class MultiPartParser {
         }
     }
 
-    private void parsePartHeaders(final ByteBuffer buffer) {
+    private void parsePartHeaders(final ByteBufferStream buffer) {
         if (
             this.state.ordinal() >= State.OCTETS.ordinal() ||
             !buffer.hasRemaining()
@@ -362,7 +367,7 @@ public class MultiPartParser {
         }
     }
 
-    private void parseOctetContent(final ByteBuffer buffer) {
+    private void parseOctetContent(final ByteBufferStream buffer) {
         if (
             this.state.ordinal() >= State.END.ordinal() ||
             !buffer.hasRemaining()
@@ -386,7 +391,9 @@ public class MultiPartParser {
                     );
                     this.partialBoundary = 0;
                     this.state = State.DELIMITER_PADDING;
-                    this.handler.addContent(ByteBuffer.allocate(0));
+                    this.handler.addContent(
+                            new ByteBufferStream(0, handler.bufferPool())
+                        );
                     this.handler.endPart();
                     return;
                 }
@@ -396,7 +403,7 @@ public class MultiPartParser {
                 return;
             } else {
                 // output up to _partialBoundary of the search pattern
-                final ByteBuffer content = this.patternBuffer.slice();
+                final ByteBufferStream content = this.patternBuffer.slice();
                 if (this.state == State.FIRST_OCTETS) {
                     this.state = State.OCTETS;
                     content.position(2);
@@ -408,14 +415,14 @@ public class MultiPartParser {
             }
         }
 
-        int match =
+        final int match =
             this.delimiterSearch.match(
                     buffer.array(),
                     buffer.arrayOffset() + buffer.position(),
                     buffer.remaining()
                 );
         if (match > 0) {
-            ByteBuffer content = buffer.slice();
+            final ByteBufferStream content = buffer.slice();
             content.limit(match - buffer.arrayOffset() - buffer.position());
             buffer.position(
                 match - buffer.arrayOffset() + this.delimiterSearch.length()
@@ -434,14 +441,14 @@ public class MultiPartParser {
                     buffer.remaining()
                 );
         if (this.partialBoundary > 0) {
-            ByteBuffer content = buffer.slice();
+            final ByteBufferStream content = buffer.slice();
             content.limit(content.limit() - this.partialBoundary);
             this.clearBuffer(buffer);
             this.handler.addContent(content);
             return;
         }
 
-        ByteBuffer content = buffer.slice();
+        final ByteBufferStream content = buffer.slice();
         this.clearBuffer(buffer);
         this.handler.addContent(content);
     }
@@ -479,8 +486,8 @@ public class MultiPartParser {
         this.state = State.HEADER;
     }
 
-    private Token next(final ByteBuffer buffer) {
-        final byte ch = buffer.get();
+    private Token next(final ByteBufferStream buffer) {
+        final int ch = buffer.read();
         final Token t = HttpTokens.TOKENS[0xff & ch];
 
         switch (t.getType()) {
@@ -515,12 +522,19 @@ public class MultiPartParser {
         return t;
     }
 
-    private void clearBuffer(final ByteBuffer buffer) {
+    private void clearBuffer(final ByteBufferStream buffer) {
         buffer.position(0);
         buffer.limit(0);
     }
 
     public interface PartHandler {
+        /**
+         * 读取 BufferPool
+         *
+         * @return ByteBufferPool
+         */
+        ByteBufferPool bufferPool();
+
         /**
          * 开始
          */
@@ -538,7 +552,7 @@ public class MultiPartParser {
          *
          * @param buffer ByteBuffer
          */
-        void addContent(ByteBuffer buffer);
+        void addContent(ByteBufferStream buffer);
 
         /**
          * 结束

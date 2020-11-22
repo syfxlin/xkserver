@@ -25,6 +25,10 @@ public class ByteBufferPool {
     private static final int DEFAULT_BUCKET_MAX_SIZE = Integer.MAX_VALUE;
     private static final long MIN_MEMORY = 64 * 1024;
 
+    private static final ThreadLocal<ByteBufferPool> INNER_BUFFER_POOL = ThreadLocal.withInitial(
+        ByteBufferPool::new
+    );
+
     private final int minCapacity;
     private final int increment;
     private final int bucketMaxSize;
@@ -74,6 +78,10 @@ public class ByteBufferPool {
         this.bucketMaxSize = bucketMaxSize;
         this.maxHeapMemory = Math.max(maxHeapMemory, MIN_MEMORY);
         this.maxDirectMemory = Math.max(maxDirectMemory, MIN_MEMORY);
+    }
+
+    public static ByteBufferPool defaultPool() {
+        return INNER_BUFFER_POOL.get();
     }
 
     public ByteBuffer acquire(final int size) {

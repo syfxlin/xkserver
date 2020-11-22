@@ -17,9 +17,6 @@ import java.nio.channels.ByteChannel;
  */
 public class ByteBufferStream {
     private static final int DEFAULT_CAPACITY = 1024;
-    private static final ThreadLocal<ByteBufferPool> INNER_BUFFER_POOL = ThreadLocal.withInitial(
-        ByteBufferPool::new
-    );
 
     private final ByteBufferPool bufferPool;
     private volatile ByteBuffer buffer;
@@ -28,7 +25,7 @@ public class ByteBufferStream {
     private volatile OutputStream outputStream;
 
     public ByteBufferStream() {
-        this(INNER_BUFFER_POOL.get());
+        this(ByteBufferPool.defaultPool());
     }
 
     public ByteBufferStream(ByteBufferPool bufferPool) {
@@ -36,7 +33,7 @@ public class ByteBufferStream {
     }
 
     public ByteBufferStream(int capacity) {
-        this(capacity, INNER_BUFFER_POOL.get());
+        this(capacity, ByteBufferPool.defaultPool());
     }
 
     public ByteBufferStream(int capacity, ByteBufferPool bufferPool) {
@@ -44,7 +41,7 @@ public class ByteBufferStream {
     }
 
     public ByteBufferStream(int capacity, boolean direct) {
-        this(capacity, direct, INNER_BUFFER_POOL.get());
+        this(capacity, direct, ByteBufferPool.defaultPool());
     }
 
     public ByteBufferStream(
@@ -56,7 +53,7 @@ public class ByteBufferStream {
     }
 
     public ByteBufferStream(ByteBuffer buffer) {
-        this(buffer, INNER_BUFFER_POOL.get());
+        this(buffer, ByteBufferPool.defaultPool());
     }
 
     public ByteBufferStream(ByteBuffer buffer, ByteBufferPool bufferPool) {
@@ -231,6 +228,50 @@ public class ByteBufferStream {
         byte[] data = new byte[buffer.limit()];
         buffer.get(data);
         return data;
+    }
+
+    public final ByteBufferStream duplicate() {
+        return new ByteBufferStream(this.buffer.duplicate(), this.bufferPool);
+    }
+
+    public final boolean hasRemaining() {
+        return buffer.hasRemaining();
+    }
+
+    public final int remaining() {
+        return buffer.remaining();
+    }
+
+    public final int limit() {
+        return buffer.limit();
+    }
+
+    public final void limit(int limit) {
+        buffer.limit(limit);
+    }
+
+    public final int position() {
+        return buffer.position();
+    }
+
+    public final void position(int position) {
+        buffer.position(position);
+    }
+
+    public final boolean isDirect() {
+        return buffer.isDirect();
+    }
+
+    public final byte[] array() {
+        return buffer.array();
+    }
+
+    public final int arrayOffset() {
+        return buffer.arrayOffset();
+    }
+
+    public final ByteBufferStream slice() {
+        return new ByteBufferStream(buffer.slice(), this.bufferPool);
     }
 
     public final void readFrom(ByteChannel channel, int length)

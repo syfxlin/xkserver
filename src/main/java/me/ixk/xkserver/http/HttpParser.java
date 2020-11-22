@@ -5,12 +5,13 @@
 
 package me.ixk.xkserver.http;
 
-import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 import me.ixk.xkserver.http.HttpHeader.Value;
 import me.ixk.xkserver.http.HttpTokens.Type;
+import me.ixk.xkserver.io.ByteBufferPool;
+import me.ixk.xkserver.io.ByteBufferStream;
 
 /**
  * Http 报文解析
@@ -134,7 +135,7 @@ public class HttpParser {
         this.maxHeaderByteLength = maxHeaderByteLength;
     }
 
-    public void parse(final ByteBuffer buffer) {
+    public void parse(final ByteBufferStream buffer) {
         try {
             if (this.state == State.END) {
                 throw new IllegalStateException("HttpParser status is END");
@@ -172,7 +173,7 @@ public class HttpParser {
         this.state = State.END;
     }
 
-    private void parseLine(final ByteBuffer buffer) {
+    private void parseLine(final ByteBufferStream buffer) {
         if (
             this.state.ordinal() >= State.HEADER.ordinal() ||
             !buffer.hasRemaining()
@@ -313,7 +314,7 @@ public class HttpParser {
         }
     }
 
-    private void parseHeaders(final ByteBuffer buffer) {
+    private void parseHeaders(final ByteBufferStream buffer) {
         if (!buffer.hasRemaining()) {
             return;
         }
@@ -436,7 +437,7 @@ public class HttpParser {
         }
     }
 
-    private void parseContent(final ByteBuffer buffer) {
+    private void parseContent(final ByteBufferStream buffer) {
         if (
             this.state.ordinal() >= State.TRAILER.ordinal() ||
             !buffer.hasRemaining()
@@ -463,7 +464,9 @@ public class HttpParser {
             switch (this.state) {
                 // 空内容
                 case EMPTY_CONTENT:
-                    this.handler.addContent(ByteBuffer.allocate(0));
+                    this.handler.addContent(
+                            new ByteBufferStream(0, handler.bufferPool())
+                        );
                     this.state = State.END_CONTENT;
                     return;
                 // 定长内容
@@ -472,7 +475,7 @@ public class HttpParser {
                         this.state = State.END_CONTENT;
                         return;
                     }
-                    final ByteBuffer content = buffer.duplicate();
+                    final ByteBufferStream content = buffer.duplicate();
                     if (buffer.remaining() > this.contentLength) {
                         content.limit(content.position() + this.contentLength);
                     }
@@ -530,7 +533,7 @@ public class HttpParser {
                         // 当分块内容读取完毕时切换到分块的初始状态，进行下一轮分块读取
                         this.state = State.CHUNKED_CONTENT;
                     } else {
-                        final ByteBuffer chunk = buffer.duplicate();
+                        final ByteBufferStream chunk = buffer.duplicate();
                         if (buffer.remaining() > this.chunkLength) {
                             chunk.limit(chunk.position() + this.chunkLength);
                         }
@@ -614,7 +617,7 @@ public class HttpParser {
         this.state = this.headerState;
     }
 
-    private void parseTrailer(final ByteBuffer buffer) {
+    private void parseTrailer(final ByteBufferStream buffer) {
         if (
             this.state.ordinal() > State.TRAILER.ordinal() ||
             !buffer.hasRemaining() ||
@@ -625,12 +628,12 @@ public class HttpParser {
         this.parseHeaders(buffer);
     }
 
-    private void parseCrLf(final ByteBuffer buffer) {
+    private void parseCrLf(final ByteBufferStream buffer) {
         if (
             (this.trailers.isEmpty() && this.state == State.END_CONTENT) ||
             this.state == State.TRAILER
         ) {
-            final ByteBuffer copy = buffer.duplicate();
+            final ByteBufferStream copy = buffer.duplicate();
             while (buffer.hasRemaining()) {
                 final HttpTokens.Token next = this.next(copy);
                 if (next != null && next.getType() == Type.LF) {
@@ -652,11 +655,11 @@ public class HttpParser {
         }
     }
 
-    private HttpTokens.Token next(final ByteBuffer buffer) {
+    private HttpTokens.Token next(final ByteBufferStream buffer) {
         if (!buffer.hasRemaining()) {
             return null;
         }
-        final byte ch = buffer.get();
+        final int ch = buffer.read();
         final HttpTokens.Token token = HttpTokens.parse(ch);
         switch (token.getType()) {
             case CNTL:
@@ -703,6 +706,13 @@ public class HttpParser {
     }
 
     public interface RequestHandler {
+        /**
+         * 读取 BufferPool
+         *
+         * @return ByteBufferPool
+         */
+        ByteBufferPool bufferPool();
+
         /**
          * 设置 Http 方法
          *
@@ -752,7 +762,7 @@ public class HttpParser {
          *
          * @param buffer ByteBuffer
          */
-        void addContent(ByteBuffer buffer);
+        void addContent(ByteBufferStream buffer);
 
         /**
          * 失败时调用

@@ -9,13 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import cn.hutool.core.io.IoUtil;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map.Entry;
 import javax.servlet.http.Part;
 import me.ixk.xkserver.http.MultiPartParser.PartHandler;
 import me.ixk.xkserver.http.MultiParts.MultiPart;
 import me.ixk.xkserver.http.MultiParts.MultiPartConfig;
+import me.ixk.xkserver.io.ByteBufferPool;
+import me.ixk.xkserver.io.ByteBufferStream;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -44,7 +45,7 @@ class MultiPartParserTest {
             "WebAppBoundary"
         );
         for (byte b : this.partContent().array()) {
-            parser.parse(ByteBuffer.wrap(new byte[] { b }));
+            parser.parse(ByteBufferStream.wrap(new byte[] { b }));
         }
         final MultiParts parts = handler.getMultiParts();
         this.assertParts(parts);
@@ -62,6 +63,11 @@ class MultiPartParserTest {
         }
 
         @Override
+        public ByteBufferPool bufferPool() {
+            return ByteBufferPool.defaultPool();
+        }
+
+        @Override
         public void startPart() {
             this.part = this.multiParts.new MultiPart();
             this.part.setHeaders(new HttpFields());
@@ -73,9 +79,9 @@ class MultiPartParserTest {
         }
 
         @Override
-        public void addContent(final ByteBuffer buffer) {
+        public void addContent(final ByteBufferStream buffer) {
             try {
-                this.part.write(buffer);
+                this.part.write(buffer.getInputStream());
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
@@ -94,8 +100,8 @@ class MultiPartParserTest {
         }
     }
 
-    private ByteBuffer partContent() {
-        return ByteBuffer.wrap(
+    private ByteBufferStream partContent() {
+        return ByteBufferStream.wrap(
             (
                 "--WebAppBoundary\r\n" +
                 "Content-Disposition: form-data; name=\"file\"; filename=\"pom.xml\"\r\n" +

@@ -16,7 +16,6 @@ import cn.hutool.core.io.IoUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -34,6 +33,7 @@ import me.ixk.xkserver.conntecor.Acceptor;
 import me.ixk.xkserver.conntecor.Connector;
 import me.ixk.xkserver.conntecor.PollerManager;
 import me.ixk.xkserver.conntecor.Server;
+import me.ixk.xkserver.io.ByteBufferStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -446,8 +446,8 @@ class RequestTest {
         assertEquals("value", parseBody.get("key").asText());
     }
 
-    private static ByteBuffer queryRequest() {
-        return ByteBuffer.wrap(
+    private static ByteBufferStream queryRequest() {
+        return ByteBufferStream.wrap(
             (
                 "GET /welcome?age=18&name=syfxlin HTTP/1.1\r\n" +
                 "Host: localhost:8080\r\n" +
@@ -462,8 +462,8 @@ class RequestTest {
         );
     }
 
-    private static ByteBuffer bodyRequest() {
-        return ByteBuffer.wrap(
+    private static ByteBufferStream bodyRequest() {
+        return ByteBufferStream.wrap(
             (
                 "POST /welcome HTTP/1.1\r\n" +
                 "Host: localhost:8080\r\n" +
@@ -475,8 +475,8 @@ class RequestTest {
         );
     }
 
-    private static ByteBuffer multiPartRequest() {
-        return ByteBuffer.wrap(
+    private static ByteBufferStream multiPartRequest() {
+        return ByteBufferStream.wrap(
             (
                 "POST / HTTP/1.1\r\n" +
                 "Content-Type: multipart/form-data; boundary=WebAppBoundary\r\n" +
@@ -506,8 +506,8 @@ class RequestTest {
         );
     }
 
-    private static ByteBuffer jsonRequest() {
-        return ByteBuffer.wrap(
+    private static ByteBufferStream jsonRequest() {
+        return ByteBufferStream.wrap(
             (
                 "POST /method HTTP/1.1\r\n" +
                 "Content-Type: application/json\r\n" +

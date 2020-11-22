@@ -6,7 +6,6 @@
 package me.ixk.xkserver.http;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import javax.servlet.ReadListener;
 import javax.servlet.ServletInputStream;
 import me.ixk.xkserver.io.ByteBufferStream;
@@ -20,12 +19,16 @@ import me.ixk.xkserver.io.ByteBufferStream;
 public class HttpInput extends ServletInputStream {
     private final ByteBufferStream stream = new ByteBufferStream();
 
-    public void writeBuffer(final ByteBuffer buffer) {
-        stream.write(buffer);
+    public void writeBuffer(final ByteBufferStream buffer) {
+        try {
+            stream.readFrom(buffer.getInputStream());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    public ByteBuffer readBuffer() {
-        return stream.getBuffer();
+    public ByteBufferStream readBuffer() {
+        return stream;
     }
 
     @Override

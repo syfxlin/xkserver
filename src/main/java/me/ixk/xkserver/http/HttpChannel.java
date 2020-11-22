@@ -6,13 +6,14 @@
 package me.ixk.xkserver.http;
 
 import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.Executor;
 import me.ixk.xkserver.conntecor.Connector;
 import me.ixk.xkserver.conntecor.Poller;
 import me.ixk.xkserver.http.HttpParser.RequestHandler;
+import me.ixk.xkserver.io.ByteBufferPool;
+import me.ixk.xkserver.io.ByteBufferStream;
 
 /**
  * HttpChannel
@@ -71,6 +72,11 @@ public class HttpChannel implements RequestHandler {
     }
 
     @Override
+    public ByteBufferPool bufferPool() {
+        return ByteBufferPool.defaultPool();
+    }
+
+    @Override
     public void setHttpMethod(HttpMethod method) {
         this.httpMethod = method;
     }
@@ -105,7 +111,7 @@ public class HttpChannel implements RequestHandler {
     }
 
     @Override
-    public void addContent(ByteBuffer buffer) {
+    public void addContent(ByteBufferStream buffer) {
         this.httpInput.writeBuffer(buffer);
     }
 

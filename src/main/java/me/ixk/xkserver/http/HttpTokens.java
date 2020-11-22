@@ -180,6 +180,10 @@ public class HttpTokens {
         return TOKENS[0xff & ch];
     }
 
+    public static Token parse(int ch) {
+        return TOKENS[0xff & ch];
+    }
+
     public static Token parse(char ch) {
         return parse((byte) ch);
     }
