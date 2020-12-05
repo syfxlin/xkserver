@@ -38,6 +38,7 @@ import javax.servlet.ServletException;
 import javax.servlet.ServletInputStream;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
+import javax.servlet.SessionCookieConfig;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -56,6 +57,7 @@ import me.ixk.xkserver.utils.MultiMap;
  * @date 2020/10/27 上午 8:15
  */
 public class Request implements HttpServletRequest {
+
     private static final String MULTIPART_CONFIG_ANNOTATION =
         "me.ixk.xkserver.multipartConfig";
     private static final MultiMap<String> NO_PARAMS = new MultiMap<>();
@@ -73,6 +75,12 @@ public class Request implements HttpServletRequest {
     private InetSocketAddress local;
     private List<Cookie> cookies;
     private String characterEncoding;
+
+    private Attributes attributes;
+    private boolean sessionIdReady = false;
+    private String sessionId;
+    private boolean sessionFromCookie = true;
+    private SessionCookieConfig sessionCookieConfig;
 
     private MultiMap<String> parameters;
     private MultiMap<String> queryParameters;
@@ -218,8 +226,11 @@ public class Request implements HttpServletRequest {
 
     @Override
     public String getRemoteUser() {
-        // TODO: 未完成
-        return null;
+        final Principal principal = this.getUserPrincipal();
+        if (principal == null) {
+            return null;
+        }
+        return principal.getName();
     }
 
     @Override
@@ -236,8 +247,43 @@ public class Request implements HttpServletRequest {
 
     @Override
     public String getRequestedSessionId() {
-        // TODO: 未完成
-        return null;
+        if (!this.sessionIdReady && this.sessionId == null) {
+            // Cookie
+            final Cookie[] cookies = this.getCookies();
+            final String name = this.sessionCookieConfig.getName();
+            if (cookies != null && cookies.length > 0) {
+                for (final Cookie cookie : cookies) {
+                    if (name.equalsIgnoreCase(cookie.getName())) {
+                        final String id = cookie.getValue();
+                        this.sessionFromCookie = true;
+                        this.sessionId = id;
+                        break;
+                    }
+                }
+            }
+            // Url
+            if (this.sessionId == null) {
+                final String uri = this.getRequestURI();
+                final String prefix = ";" + name + "=";
+                int s = uri.indexOf(prefix);
+                if (s >= 0) {
+                    s += prefix.length();
+                    int i = s;
+                    while (i < uri.length()) {
+                        final char c = uri.charAt(i);
+                        if (c == ';' || c == '#' || c == '?' || c == '/') {
+                            break;
+                        }
+                        i++;
+                    }
+
+                    this.sessionId = uri.substring(s, i);
+                    this.sessionFromCookie = false;
+                }
+            }
+            this.sessionIdReady = true;
+        }
+        return this.sessionId;
     }
 
     @Override
@@ -250,7 +296,7 @@ public class Request implements HttpServletRequest {
         if (this.httpUri == null) {
             return null;
         }
-        StringBuffer url = new StringBuffer();
+        final StringBuffer url = new StringBuffer();
         final String scheme = this.getScheme();
         url
             .append(scheme)
@@ -303,26 +349,28 @@ public class Request implements HttpServletRequest {
 
     @Override
     public boolean isRequestedSessionIdValid() {
-        // TODO: 未完成
-        return false;
+        final String id = this.getRequestedSessionId();
+        if (id == null) {
+            return false;
+        }
+        return this.getSession(false) != null;
     }
 
     @Override
     public boolean isRequestedSessionIdFromCookie() {
-        // TODO: 未完成
-        return false;
+        this.getRequestedSessionId();
+        return this.sessionFromCookie;
     }
 
     @Override
     public boolean isRequestedSessionIdFromURL() {
-        // TODO: 未完成
-        return false;
+        this.getRequestedSessionId();
+        return !this.sessionFromCookie;
     }
 
     @Override
     public boolean isRequestedSessionIdFromUrl() {
-        // TODO: 未完成
-        return false;
+        return this.isRequestedSessionIdFromURL();
     }
 
     @Override
@@ -373,14 +421,19 @@ public class Request implements HttpServletRequest {
         if (MULTIPART_CONFIG_ANNOTATION.equals(name)) {
             return new MultiPartConfig(null, -1, -1, 0);
         }
-        // TODO: 未完成
-        return null;
+        return this.getAttributes().getAttribute(name);
     }
 
     @Override
     public Enumeration<String> getAttributeNames() {
-        // TODO: 未完成
-        return null;
+        return this.getAttributes().getAttributeNames();
+    }
+
+    public Attributes getAttributes() {
+        if (this.attributes == null) {
+            this.attributes = new AttributesMap();
+        }
+        return this.attributes;
     }
 
     @Override
@@ -543,12 +596,12 @@ public class Request implements HttpServletRequest {
 
     @Override
     public void setAttribute(final String name, final Object o) {
-        // TODO: 未完成
+        this.getAttributes().setAttribute(name, o);
     }
 
     @Override
     public void removeAttribute(final String name) {
-        // TODO: 未完成
+        this.getAttributes().removeAttribute(name);
     }
 
     @Override
@@ -669,8 +722,7 @@ public class Request implements HttpServletRequest {
     public AsyncContext startAsync(
         final ServletRequest servletRequest,
         final ServletResponse servletResponse
-    )
-        throws IllegalStateException {
+    ) throws IllegalStateException {
         // TODO: 未完成
         return null;
     }
