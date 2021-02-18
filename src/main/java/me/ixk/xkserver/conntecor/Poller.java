@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
+ * Copyright (c) 2021, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
  *
  */
 
@@ -30,6 +30,7 @@ import me.ixk.xkserver.utils.AutoLock;
  */
 @Slf4j
 public class Poller extends AbstractLifeCycle implements Runnable {
+
     private final int id;
     private final PollerManager pollerManager;
     private volatile Selector selector;
@@ -54,7 +55,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         this.pollerManager.execute(this);
     }
 
-    public void submit(SelectUpdate update) {
+    public void submit(final SelectUpdate update) {
         this.updates.add(update);
         if (this.selector != null) {
             this.selector.wakeup();
@@ -62,7 +63,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
     }
 
     public Set<SelectionKey> select() {
-        Selector selector = this.selector;
+        final Selector selector = this.selector;
         if (selector == null) {
             return Collections.emptySet();
         }
@@ -87,6 +88,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
     }
 
     private class SelectorProducer implements ExecutionStrategy.Producer {
+
         private volatile Iterator<SelectionKey> iterator = Collections.emptyIterator();
 
         @Override
@@ -169,6 +171,7 @@ public class Poller extends AbstractLifeCycle implements Runnable {
     }
 
     public interface SelectUpdate {
+
         /**
          * 更新任务
          *
@@ -178,21 +181,22 @@ public class Poller extends AbstractLifeCycle implements Runnable {
     }
 
     public interface Selectable {
+
         /**
          * Select 任务
          *
          * @param key     SelectionKey
          * @param channel SelectableChannel
-         *
          * @return 任务
          */
         Runnable selected(SelectionKey key, SelectableChannel channel);
     }
 
     public class Accept implements Selectable, SelectUpdate {
+
         private final SocketChannel channel;
 
-        public Accept(SocketChannel channel) {
+        public Accept(final SocketChannel channel) {
             this.channel = channel;
         }
 
@@ -208,20 +212,21 @@ public class Poller extends AbstractLifeCycle implements Runnable {
                     // log.info("{}", new String(byteBuffer.array()).trim());
                     // log.info("Poller: {}", Poller.this.id);
                     this.channel.write(
-                            ByteBuffer.wrap(
-                                (
-                                    "HTTP/1.1 200 OK\n" +
+                        ByteBuffer.wrap(
+                            (
+                                "HTTP/1.1 200 OK\n" +
                                     "Content-Length: 5\n" +
                                     "Date: Mon, 19 Oct 2020 05:10:08 GMT\n" +
                                     "Expires: Thu, 01 Jan 1970 00:00:00 GMT\n" +
                                     "Server: Jetty(9.4.30.v20200611)\n" +
-                                    "Set-Cookie: JSESSIONID=node01ddhx5zo238k11hwjj6pwus3ax0.node0; Path=/\n" +
+                                    "Set-Cookie: JSESSIONID=node01ddhx5zo238k11hwjj6pwus3ax0.node0; Path=/\n"
+                                    +
                                     "\n" +
                                     "post" +
                                     Poller.this.id
-                                ).getBytes(StandardCharsets.UTF_8)
-                            )
-                        );
+                            ).getBytes(StandardCharsets.UTF_8)
+                        )
+                    );
                     // try {
                     //     // 模拟业务阻塞
                     //     Thread.sleep(50);
@@ -236,14 +241,14 @@ public class Poller extends AbstractLifeCycle implements Runnable {
         }
 
         @Override
-        public void update(Selector selector) {
+        public void update(final Selector selector) {
             try {
                 this.channel.register(
-                        selector,
-                        SelectionKey.OP_READ | SelectionKey.OP_WRITE,
-                        this
-                    );
-            } catch (ClosedChannelException e) {
+                    selector,
+                    SelectionKey.OP_READ | SelectionKey.OP_WRITE,
+                    this
+                );
+            } catch (final ClosedChannelException e) {
                 log.error("Update error", e);
             }
         }

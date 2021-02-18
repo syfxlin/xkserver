@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
+ * Copyright (c) 2021, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
  *
  */
 
@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Test;
  * @date 2020/10/28 下午 12:03
  */
 class RequestTest {
+
     private static Request queryRequest;
     private static Request bodyRequest;
     private static Request multiRequest;
@@ -93,10 +94,12 @@ class RequestTest {
     }
 
     @Test
-    void getAuthType() {}
+    void getAuthType() {
+    }
 
     @Test
-    void getDateHeader() {}
+    void getDateHeader() {
+    }
 
     @Test
     void getHeader() {
@@ -127,7 +130,8 @@ class RequestTest {
     }
 
     @Test
-    void getIntHeader() {}
+    void getIntHeader() {
+    }
 
     @Test
     void getMethod() {
@@ -135,13 +139,16 @@ class RequestTest {
     }
 
     @Test
-    void getPathInfo() {}
+    void getPathInfo() {
+    }
 
     @Test
-    void getPathTranslated() {}
+    void getPathTranslated() {
+    }
 
     @Test
-    void getContextPath() {}
+    void getContextPath() {
+    }
 
     @Test
     void getQueryString() {
@@ -149,55 +156,72 @@ class RequestTest {
     }
 
     @Test
-    void getRemoteUser() {}
+    void getRemoteUser() {
+    }
 
     @Test
-    void isUserInRole() {}
+    void isUserInRole() {
+    }
 
     @Test
-    void getUserPrincipal() {}
+    void getUserPrincipal() {
+    }
 
     @Test
-    void getRequestedSessionId() {}
+    void getRequestedSessionId() {
+    }
 
     @Test
-    void getRequestURI() {}
+    void getRequestURI() {
+    }
 
     @Test
-    void getRequestURL() {}
+    void getRequestURL() {
+    }
 
     @Test
-    void getServletPath() {}
+    void getServletPath() {
+    }
 
     @Test
-    void getSession() {}
+    void getSession() {
+    }
 
     @Test
-    void testGetSession() {}
+    void testGetSession() {
+    }
 
     @Test
-    void changeSessionId() {}
+    void changeSessionId() {
+    }
 
     @Test
-    void isRequestedSessionIdValid() {}
+    void isRequestedSessionIdValid() {
+    }
 
     @Test
-    void isRequestedSessionIdFromCookie() {}
+    void isRequestedSessionIdFromCookie() {
+    }
 
     @Test
-    void isRequestedSessionIdFromURL() {}
+    void isRequestedSessionIdFromURL() {
+    }
 
     @Test
-    void isRequestedSessionIdFromUrl() {}
+    void isRequestedSessionIdFromUrl() {
+    }
 
     @Test
-    void authenticate() {}
+    void authenticate() {
+    }
 
     @Test
-    void login() {}
+    void login() {
+    }
 
     @Test
-    void logout() {}
+    void logout() {
+    }
 
     @Test
     void getParts() throws IOException, ServletException {
@@ -225,13 +249,16 @@ class RequestTest {
     }
 
     @Test
-    void upgrade() {}
+    void upgrade() {
+    }
 
     @Test
-    void getAttribute() {}
+    void getAttribute() {
+    }
 
     @Test
-    void getAttributeNames() {}
+    void getAttributeNames() {
+    }
 
     @Test
     void getCharacterEncoding() {
@@ -305,7 +332,7 @@ class RequestTest {
     @Test
     void getParameterValues() {
         assertArrayEquals(
-            new String[] { "syfxlin" },
+            new String[]{"syfxlin"},
             queryRequest.getParameterValues("name")
         );
     }
@@ -369,10 +396,12 @@ class RequestTest {
     }
 
     @Test
-    void setAttribute() {}
+    void setAttribute() {
+    }
 
     @Test
-    void removeAttribute() {}
+    void removeAttribute() {
+    }
 
     @Test
     void getLocale() {
@@ -392,10 +421,12 @@ class RequestTest {
     }
 
     @Test
-    void getRequestDispatcher() {}
+    void getRequestDispatcher() {
+    }
 
     @Test
-    void getRealPath() {}
+    void getRealPath() {
+    }
 
     @Test
     void getRemotePort() {
@@ -418,25 +449,32 @@ class RequestTest {
     }
 
     @Test
-    void getServletContext() {}
+    void getServletContext() {
+    }
 
     @Test
-    void startAsync() {}
+    void startAsync() {
+    }
 
     @Test
-    void testStartAsync() {}
+    void testStartAsync() {
+    }
 
     @Test
-    void isAsyncStarted() {}
+    void isAsyncStarted() {
+    }
 
     @Test
-    void isAsyncSupported() {}
+    void isAsyncSupported() {
+    }
 
     @Test
-    void getAsyncContext() {}
+    void getAsyncContext() {
+    }
 
     @Test
-    void getDispatcherType() {}
+    void getDispatcherType() {
+    }
 
     @Test
     void getParseBody() {
@@ -450,14 +488,14 @@ class RequestTest {
         return ByteBufferStream.wrap(
             (
                 "GET /welcome?age=18&name=syfxlin HTTP/1.1\r\n" +
-                "Host: localhost:8080\r\n" +
-                "Accept-Language: zh-CN\r\n" +
-                "Accept-Encoding: gzip, deflate\r\n" +
-                "Accept: */*\r\n" +
-                "Connection: keep-alive\r\n" +
-                "Cookie: yummy_cookie=choco; tasty_cookie=strawberry\r\n" +
-                "Content-Type: multipart/form-data; charset=utf-8; boundary=something\r\n" +
-                "Content-Length: 0\r\n"
+                    "Host: localhost:8080\r\n" +
+                    "Accept-Language: zh-CN\r\n" +
+                    "Accept-Encoding: gzip, deflate\r\n" +
+                    "Accept: */*\r\n" +
+                    "Connection: keep-alive\r\n" +
+                    "Cookie: yummy_cookie=choco; tasty_cookie=strawberry\r\n" +
+                    "Content-Type: multipart/form-data; charset=utf-8; boundary=something\r\n" +
+                    "Content-Length: 0\r\n"
             ).getBytes(StandardCharsets.ISO_8859_1)
         );
     }
@@ -466,11 +504,11 @@ class RequestTest {
         return ByteBufferStream.wrap(
             (
                 "POST /welcome HTTP/1.1\r\n" +
-                "Host: localhost:8080\r\n" +
-                "Content-Length: 19\r\n" +
-                "Content-Type: application/x-www-form-urlencoded\r\n" +
-                "\r\n" +
-                "age=18&name=syfxlin\r\n"
+                    "Host: localhost:8080\r\n" +
+                    "Content-Length: 19\r\n" +
+                    "Content-Type: application/x-www-form-urlencoded\r\n" +
+                    "\r\n" +
+                    "age=18&name=syfxlin\r\n"
             ).getBytes(StandardCharsets.ISO_8859_1)
         );
     }
@@ -479,29 +517,29 @@ class RequestTest {
         return ByteBufferStream.wrap(
             (
                 "POST / HTTP/1.1\r\n" +
-                "Content-Type: multipart/form-data; boundary=WebAppBoundary\r\n" +
-                "Content-Length: 351\r\n" +
-                "Host: localhost:8080\r\n" +
-                "Connection: Keep-Alive\r\n" +
-                "User-Agent: Apache-HttpClient/4.5.12 (Java/11.0.8)\r\n" +
-                "Accept-Encoding: gzip,deflate\r\n" +
-                "\r\n" +
-                "--WebAppBoundary\r\n" +
-                "Content-Disposition: form-data; name=\"element-name\"\r\n" +
-                "Content-Type: text/plain\r\n" +
-                "Content-Transfer-Encoding: 8bit\r\n" +
-                "\r\n" +
-                "Name\r\n" +
-                "--WebAppBoundary\r\n" +
-                "Content-Disposition: form-data; name=\"data\"; filename=\"data.json\"\r\n" +
-                "Content-Type: application/json\r\n" +
-                "Content-Transfer-Encoding: binary\r\n" +
-                "\r\n" +
-                "{\n" +
-                "  \"id\": 999,\n" +
-                "  \"value\": \"content\"\n" +
-                "}\r\n" +
-                "--WebAppBoundary--"
+                    "Content-Type: multipart/form-data; boundary=WebAppBoundary\r\n" +
+                    "Content-Length: 351\r\n" +
+                    "Host: localhost:8080\r\n" +
+                    "Connection: Keep-Alive\r\n" +
+                    "User-Agent: Apache-HttpClient/4.5.12 (Java/11.0.8)\r\n" +
+                    "Accept-Encoding: gzip,deflate\r\n" +
+                    "\r\n" +
+                    "--WebAppBoundary\r\n" +
+                    "Content-Disposition: form-data; name=\"element-name\"\r\n" +
+                    "Content-Type: text/plain\r\n" +
+                    "Content-Transfer-Encoding: 8bit\r\n" +
+                    "\r\n" +
+                    "Name\r\n" +
+                    "--WebAppBoundary\r\n" +
+                    "Content-Disposition: form-data; name=\"data\"; filename=\"data.json\"\r\n" +
+                    "Content-Type: application/json\r\n" +
+                    "Content-Transfer-Encoding: binary\r\n" +
+                    "\r\n" +
+                    "{\n" +
+                    "  \"id\": 999,\n" +
+                    "  \"value\": \"content\"\n" +
+                    "}\r\n" +
+                    "--WebAppBoundary--"
             ).getBytes(StandardCharsets.ISO_8859_1)
         );
     }
@@ -510,16 +548,16 @@ class RequestTest {
         return ByteBufferStream.wrap(
             (
                 "POST /method HTTP/1.1\r\n" +
-                "Content-Type: application/json\r\n" +
-                "Content-Length: 20\r\n" +
-                "Host: localhost:8080\r\n" +
-                "Connection: Keep-Alive\r\n" +
-                "User-Agent: Apache-HttpClient/4.5.12 (Java/11.0.8)\r\n" +
-                "Accept-Encoding: gzip,deflate\r\n" +
-                "\r\n" +
-                "{\n" +
-                "  \"key\": \"value\"\n" +
-                "}"
+                    "Content-Type: application/json\r\n" +
+                    "Content-Length: 20\r\n" +
+                    "Host: localhost:8080\r\n" +
+                    "Connection: Keep-Alive\r\n" +
+                    "User-Agent: Apache-HttpClient/4.5.12 (Java/11.0.8)\r\n" +
+                    "Accept-Encoding: gzip,deflate\r\n" +
+                    "\r\n" +
+                    "{\n" +
+                    "  \"key\": \"value\"\n" +
+                    "}"
             ).getBytes(StandardCharsets.ISO_8859_1)
         );
     }
@@ -532,9 +570,9 @@ class RequestTest {
         final Cookie c2 = cookieMap.get("tasty_cookie");
         if (
             c1 == null ||
-            c2 == null ||
-            !"choco".equals(c1.getValue()) ||
-            !"strawberry".equals(c2.getValue())
+                c2 == null ||
+                !"choco".equals(c1.getValue()) ||
+                !"strawberry".equals(c2.getValue())
         ) {
             fail("Cookies is not equals");
         }
@@ -552,7 +590,6 @@ class RequestTest {
         }
         return new HttpChannel(
             new Connector() {
-
                 @Override
                 public Server getServer() {
                     return null;

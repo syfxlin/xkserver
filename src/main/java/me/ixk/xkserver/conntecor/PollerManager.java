@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
+ * Copyright (c) 2021, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
  *
  */
 
@@ -18,12 +18,13 @@ import me.ixk.xkserver.life.AbstractLifeCycle;
  * @date 2020/10/19 上午 11:26
  */
 public class PollerManager extends AbstractLifeCycle {
+
     private final AtomicInteger pollerRouter = new AtomicInteger(0);
     private final Poller[] pollers;
     private final Executor executor;
 
-    public PollerManager(final Executor executor, final int count) {
-        this.executor = executor;
+    public PollerManager(final Connector connector, final int count) {
+        this.executor = connector.getExecutor();
         this.pollers = new Poller[count];
     }
 
@@ -35,7 +36,7 @@ public class PollerManager extends AbstractLifeCycle {
         return Selector.open();
     }
 
-    public Poller newPoller(int id) {
+    public Poller newPoller(final int id) {
         return new Poller(id, this);
     }
 
@@ -51,12 +52,11 @@ public class PollerManager extends AbstractLifeCycle {
 
     public void register(final SocketChannel channel)
         throws ClosedChannelException {
-        // this.getPoller0().register(channel);
         final Poller poller = this.getPoller0();
         poller.submit(poller.new Accept(channel));
     }
 
-    public void execute(Runnable run) {
+    public void execute(final Runnable run) {
         this.executor.execute(run);
     }
 

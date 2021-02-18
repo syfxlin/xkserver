@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
+ * Copyright (c) 2021, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
  *
  */
 
@@ -15,6 +15,7 @@ import me.ixk.xkserver.life.AbstractLifeCycle;
  */
 @Slf4j
 public class ServerConnector extends AbstractLifeCycle implements Connector {
+
     private final PollerManager pollerManager;
     private final Acceptor acceptor;
     private final Executor executor;
@@ -23,8 +24,8 @@ public class ServerConnector extends AbstractLifeCycle implements Connector {
     public ServerConnector(final Server server, final int pollerCount) {
         this.server = server;
         this.executor = server.getExecutor();
-        this.pollerManager = new PollerManager(this.executor, pollerCount);
-        this.acceptor = new Acceptor(this.pollerManager);
+        this.pollerManager = new PollerManager(this, pollerCount);
+        this.acceptor = new Acceptor(this);
     }
 
     @Override

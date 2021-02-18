@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
+ * Copyright (c) 2021, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
  *
  */
 
@@ -20,11 +20,11 @@ public class AttributesMap implements Attributes {
 
     private final AtomicReference<ConcurrentMap<String, Object>> map = new AtomicReference<>();
 
-    private ConcurrentMap<String, Object> map() {
+    protected ConcurrentMap<String, Object> map() {
         return this.map.get();
     }
 
-    private ConcurrentMap<String, Object> ensureMap() {
+    protected ConcurrentMap<String, Object> ensureMap() {
         while (true) {
             ConcurrentMap<String, Object> concurrentMap = this.map();
             if (concurrentMap != null) {

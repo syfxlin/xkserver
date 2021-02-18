@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
+ * Copyright (c) 2021, Otstar Lin (syfxlin@gmail.com). All Rights Reserved.
  *
  */
 
@@ -18,12 +18,13 @@ import me.ixk.xkserver.life.AbstractLifeCycle;
  */
 @Slf4j
 public class Acceptor extends AbstractLifeCycle implements Runnable {
+
     private volatile String name;
     private final ServerSocketChannel acceptChannel;
     private final PollerManager pollerManager;
 
-    public Acceptor(final PollerManager manager) {
-        this.pollerManager = manager;
+    public Acceptor(final Connector connector) {
+        this.pollerManager = connector.getPollerManager();
         try {
             this.acceptChannel = ServerSocketChannel.open();
             this.acceptChannel.socket().bind(new InetSocketAddress(8080));
@@ -37,14 +38,14 @@ public class Acceptor extends AbstractLifeCycle implements Runnable {
         this.pollerManager.execute(this);
     }
 
-    public void accept() throws IOException {
+    public void accept() throws IOException, InterruptedException {
         if (this.acceptChannel != null && this.acceptChannel.isOpen()) {
             final SocketChannel channel = this.acceptChannel.accept();
             this.accepted(channel);
         }
     }
 
-    public void accepted(SocketChannel channel) throws IOException {
+    public void accepted(final SocketChannel channel) throws IOException {
         if (channel != null && channel.isOpen()) {
             channel.configureBlocking(false);
             this.pollerManager.register(channel);
@@ -54,7 +55,7 @@ public class Acceptor extends AbstractLifeCycle implements Runnable {
     @Override
     public void run() {
         final Thread thread = Thread.currentThread();
-        String name = thread.getName();
+        final String name = thread.getName();
         this.name = String.format("acceptor-%s-%d", name, hashCode());
         thread.setName(this.name);
 
@@ -62,7 +63,7 @@ public class Acceptor extends AbstractLifeCycle implements Runnable {
             while (true) {
                 try {
                     this.accept();
-                } catch (Throwable e) {
+                } catch (final Throwable e) {
                     log.error("Accept error", e);
                 }
             }
@@ -73,7 +74,7 @@ public class Acceptor extends AbstractLifeCycle implements Runnable {
 
     @Override
     public String toString() {
-        String name = this.name;
+        final String name = this.name;
         if (name == null) {
             return String.format("acceptor@%x", hashCode());
         }
